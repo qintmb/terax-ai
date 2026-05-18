@@ -24,3 +24,10 @@ dist-ssr
 *.sw?
 
 *.tsbuildinfo
+
+# Tauri updater signing material. Keep private keys out of git.
+.tauri/
+.tauri-signing/
+.env.tauri-signing
+*.key
+*.key.pub
