@@ -13,6 +13,9 @@
 </div>
 
 ---
+Terax is a community-driven fork of the original Terax project from crynta/terax-ai, extended and refined by Qintmb for broader real-world development workflows, AI-assisted engineering, and productivity-focused customization.
+
+Built on top of the solid foundation created by the original authors, this project continues evolving with additional improvements, experiments, UI refinements, workflow optimizations, and AI integration enhancements tailored for modern developers and creative builders.
 
 Terax is a fast, lightweight AI terminal (ADE) built on Tauri 2 + Rust and React 19. It pairs a native PTY backend with a modern UI — multi-tab terminals, an integrated code editor, a file explorer, and a first-class AI side-panel that works with your own API keys (or fully local models via LM Studio). Under 10 MB on disk, no telemetry, keys stored in the OS keychain.
 
