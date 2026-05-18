@@ -17,8 +17,10 @@ const NERD_FONT_CANDIDATES = [
 ];
 
 const FALLBACK_CHAIN = '"JetBrains Mono", SFMono-Regular, Menlo, monospace';
+const MENLO_FIRST_CHAIN = 'Menlo, "JetBrains Mono", SFMono-Regular, monospace';
 
 let detected: string | null = null;
+let terminalDetected: string | null = null;
 let monoReady: Promise<void> | null = null;
 
 export function ensureMonoFontsLoaded(): Promise<void> {
@@ -52,4 +54,22 @@ export function detectMonoFontFamily(): string {
   }
   detected = FALLBACK_CHAIN;
   return detected;
+}
+
+export function detectTerminalFontFamily(): string {
+  if (terminalDetected) return terminalDetected;
+  if (typeof document === "undefined" || !document.fonts) {
+    terminalDetected = MENLO_FIRST_CHAIN;
+    return terminalDetected;
+  }
+  try {
+    if (document.fonts.check('12px "Menlo"')) {
+      terminalDetected = MENLO_FIRST_CHAIN;
+      return terminalDetected;
+    }
+  } catch {
+    // Some browsers throw on invalid font shorthand; ignore.
+  }
+  terminalDetected = detectMonoFontFamily();
+  return terminalDetected;
 }
