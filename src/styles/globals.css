@@ -120,6 +120,49 @@
     --sidebar-ring: oklch(0.56 0.021 213.5);
 }
 
+html[data-app-theme="tokyo-night"].dark {
+    --background: oklch(0.16 0.035 264);
+    --foreground: oklch(0.9 0.02 262);
+    --card: oklch(0.2 0.04 264);
+    --popover: oklch(0.2 0.04 264);
+    --muted: oklch(0.27 0.045 264);
+    --accent: oklch(0.31 0.075 271);
+    --primary: oklch(0.75 0.13 235);
+    --border: oklch(1 0 0 / 12%);
+    --ring: oklch(0.69 0.11 235);
+    --sidebar: oklch(0.19 0.038 264);
+    --sidebar-accent: oklch(0.29 0.06 264);
+}
+
+html[data-app-theme="nord"].dark {
+    --background: oklch(0.25 0.025 255);
+    --foreground: oklch(0.9 0.015 246);
+    --card: oklch(0.3 0.028 255);
+    --popover: oklch(0.3 0.028 255);
+    --muted: oklch(0.36 0.03 255);
+    --accent: oklch(0.42 0.055 248);
+    --primary: oklch(0.78 0.085 220);
+    --border: oklch(1 0 0 / 13%);
+    --ring: oklch(0.7 0.07 220);
+    --sidebar: oklch(0.28 0.026 255);
+    --sidebar-accent: oklch(0.38 0.036 255);
+}
+
+html[data-app-theme="aura"].dark,
+html[data-app-theme="copilot"].dark {
+    --background: oklch(0.17 0.035 300);
+    --foreground: oklch(0.93 0.015 300);
+    --card: oklch(0.22 0.045 300);
+    --popover: oklch(0.22 0.045 300);
+    --muted: oklch(0.3 0.05 300);
+    --accent: oklch(0.36 0.08 300);
+    --primary: oklch(0.75 0.16 310);
+    --border: oklch(1 0 0 / 12%);
+    --ring: oklch(0.7 0.14 310);
+    --sidebar: oklch(0.2 0.04 300);
+    --sidebar-accent: oklch(0.32 0.06 300);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -128,6 +171,7 @@
     @apply bg-background text-foreground;
     margin: 0;
     overflow: hidden;
+    font-size: var(--app-font-size, 14px);
     }
   html, body, #root {
     height: 100%;

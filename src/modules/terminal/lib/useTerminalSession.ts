@@ -7,6 +7,7 @@ import { registerCwdHandler, registerPromptTracker } from "./osc-handlers";
 import { openPty, type PtySession } from "./pty-bridge";
 import {
   acquireSlot,
+  applyFontFamily,
   applyFontSize,
   applyTheme as applyPoolTheme,
   applyScrollback,
@@ -322,6 +323,7 @@ export function useTerminalSession({
   const fontSize = usePreferencesStore((p) => p.terminalFontSize);
   const zoomLevel = usePreferencesStore((p) => p.zoomLevel);
   useEffect(() => {
+    applyFontFamily();
     applyFontSize(Math.max(4, Math.round(fontSize * zoomLevel)));
   }, [fontSize, zoomLevel]);
 

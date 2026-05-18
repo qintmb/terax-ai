@@ -6,15 +6,31 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { AGENT_ICONS } from "@/modules/ai/components/AgentSwitcher";
 import {
+  MODELS,
+  getModel,
+  type ModelId,
+} from "@/modules/ai/config";
+import {
   BUILTIN_AGENTS,
   type Agent,
   type AgentIconId,
 } from "@/modules/ai/lib/agents";
+import { getAllKeys } from "@/modules/ai/lib/keyring";
+import {
+  fetchOpenAICompatibleModels,
+  type OpenAICompatibleModelInfo,
+} from "@/modules/ai/lib/openaiCompatibleModels";
 import {
   isValidHandle,
   normalizeHandle,
@@ -29,6 +45,7 @@ import { usePreferencesStore } from "@/modules/settings/preferences";
 import { setCustomInstructions } from "@/modules/settings/store";
 import {
   Add01Icon,
+  ArrowDown01Icon,
   CheckmarkCircle02Icon,
   Delete02Icon,
   Edit02Icon,
@@ -326,7 +343,46 @@ function AgentEditorDialog({
   onSave: (a: Agent) => void;
 }) {
   const [draft, setDraft] = useState<Agent | null>(agent);
+  const baseURL = usePreferencesStore((s) => s.openaiCompatibleBaseURL);
+  const configuredCompatModel = usePreferencesStore(
+    (s) => s.openaiCompatibleModelId,
+  );
+  const [compatModels, setCompatModels] = useState<OpenAICompatibleModelInfo[]>(
+    [],
+  );
+  const [modelsStatus, setModelsStatus] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
   useEffect(() => setDraft(agent), [agent]);
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      if (!baseURL.trim()) {
+        setCompatModels([]);
+        setModelsStatus("idle");
+        return;
+      }
+      setModelsStatus("loading");
+      try {
+        const keys = await getAllKeys();
+        const models = await fetchOpenAICompatibleModels(
+          baseURL,
+          keys["openai-compatible"],
+        );
+        if (!alive) return;
+        setCompatModels(models);
+        setModelsStatus("idle");
+      } catch {
+        if (!alive) return;
+        setCompatModels([]);
+        setModelsStatus("error");
+      }
+    };
+    void run();
+    return () => {
+      alive = false;
+    };
+  }, [baseURL]);
   if (!draft) return null;
 
   const isNew = !existing.some((a) => a.id === draft.id);
@@ -389,6 +445,17 @@ function AgentEditorDialog({
             />
           </div>
           <div className="flex flex-col gap-1">
+            <Label>Model override</Label>
+            <AgentModelPicker
+              draft={draft}
+              compatModels={compatModels}
+              configuredCompatModel={configuredCompatModel}
+              loading={modelsStatus === "loading"}
+              error={modelsStatus === "error"}
+              onChange={(patch) => setDraft({ ...draft, ...patch })}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
             <Label>Instructions</Label>
             <Textarea
               value={draft.instructions}
@@ -414,6 +481,138 @@ function AgentEditorDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function AgentModelPicker({
+  draft,
+  compatModels,
+  configuredCompatModel,
+  loading,
+  error,
+  onChange,
+}: {
+  draft: Agent;
+  compatModels: OpenAICompatibleModelInfo[];
+  configuredCompatModel: string;
+  loading: boolean;
+  error: boolean;
+  onChange: (
+    patch: Pick<
+      Agent,
+      "preferredModelId" | "preferredOpenaiCompatibleModelId"
+    >,
+  ) => void;
+}) {
+  const baseModelId = (draft.preferredModelId ?? "") as ModelId | "";
+  const compatModel = draft.preferredOpenaiCompatibleModelId ?? "";
+  const label = (() => {
+    if (!baseModelId) return "Use chat selection";
+    if (baseModelId === "openai-compatible-custom") {
+      return compatModel || configuredCompatModel || "OpenAI-compatible";
+    }
+    return getModel(baseModelId).label;
+  })();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="outline"
+          className="h-8 justify-between gap-2 px-2.5 text-[12px]"
+        >
+          <span className="truncate">{label}</span>
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            size={12}
+            strokeWidth={2}
+            className="opacity-70"
+          />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="min-w-[280px]">
+        <DropdownMenuItem
+          onSelect={() =>
+            onChange({
+              preferredModelId: null,
+              preferredOpenaiCompatibleModelId: null,
+            })
+          }
+          className={!baseModelId ? "bg-accent/50" : undefined}
+        >
+          Use chat selection
+        </DropdownMenuItem>
+        <div className="px-2 py-1 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+          OpenAI-compatible
+        </div>
+        {loading ? (
+          <DropdownMenuItem disabled>Loading models…</DropdownMenuItem>
+        ) : error ? (
+          <DropdownMenuItem disabled>Could not load /models</DropdownMenuItem>
+        ) : compatModels.length > 0 ? (
+          compatModels.map((m) => (
+            <DropdownMenuItem
+              key={m.id}
+              onSelect={() =>
+                onChange({
+                  preferredModelId: "openai-compatible-custom",
+                  preferredOpenaiCompatibleModelId: m.id,
+                })
+              }
+              className={
+                baseModelId === "openai-compatible-custom" &&
+                compatModel === m.id
+                  ? "bg-accent/50"
+                  : undefined
+              }
+            >
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate font-mono text-[11px]">{m.id}</span>
+                {m.ownedBy ? (
+                  <span className="text-[10px] text-muted-foreground">
+                    {m.ownedBy}
+                  </span>
+                ) : null}
+              </span>
+            </DropdownMenuItem>
+          ))
+        ) : (
+          <DropdownMenuItem
+            disabled={!configuredCompatModel.trim()}
+            onSelect={() =>
+              onChange({
+                preferredModelId: "openai-compatible-custom",
+                preferredOpenaiCompatibleModelId: configuredCompatModel,
+              })
+            }
+          >
+            {configuredCompatModel || "No custom models configured"}
+          </DropdownMenuItem>
+        )}
+        <div className="px-2 py-1 text-[10px] font-medium tracking-wide text-muted-foreground uppercase">
+          Built-in providers
+        </div>
+        {MODELS.filter((m) => m.id !== "openai-compatible-custom").map((m) => (
+          <DropdownMenuItem
+            key={m.id}
+            onSelect={() =>
+              onChange({
+                preferredModelId: m.id,
+                preferredOpenaiCompatibleModelId: null,
+              })
+            }
+            className={baseModelId === m.id ? "bg-accent/50" : undefined}
+          >
+            <span className="flex min-w-0 flex-col">
+              <span>{m.label}</span>
+              <span className="text-[10px] text-muted-foreground">
+                {m.provider} · {m.hint}
+              </span>
+            </span>
+          </DropdownMenuItem>
+        ))}
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 

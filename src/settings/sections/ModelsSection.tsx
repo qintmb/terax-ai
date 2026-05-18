@@ -20,6 +20,10 @@ import {
   type ProviderId,
 } from "@/modules/ai/config";
 import { clearKey, getAllKeys, setKey } from "@/modules/ai/lib/keyring";
+import {
+  fetchOpenAICompatibleModels,
+  type OpenAICompatibleModelInfo,
+} from "@/modules/ai/lib/openaiCompatibleModels";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import {
   emitKeysChanged,
@@ -347,9 +351,40 @@ function OpenAICompatibleBlock({
   const [testStatus, setTestStatus] = useState<
     "idle" | "testing" | "ok" | "fail"
   >("idle");
+  const [compatModels, setCompatModels] = useState<OpenAICompatibleModelInfo[]>(
+    [],
+  );
+  const [compatModelsStatus, setCompatModelsStatus] = useState<
+    "idle" | "loading" | "fail"
+  >("idle");
 
   useEffect(() => setUrlDraft(baseURL), [baseURL]);
   useEffect(() => setModelDraft(modelId), [modelId]);
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      if (!baseURL.trim()) {
+        setCompatModels([]);
+        setCompatModelsStatus("idle");
+        return;
+      }
+      setCompatModelsStatus("loading");
+      try {
+        const models = await fetchOpenAICompatibleModels(baseURL, compatKey);
+        if (!alive) return;
+        setCompatModels(models);
+        setCompatModelsStatus("idle");
+      } catch {
+        if (!alive) return;
+        setCompatModels([]);
+        setCompatModelsStatus("fail");
+      }
+    };
+    void run();
+    return () => {
+      alive = false;
+    };
+  }, [baseURL, compatKey]);
 
   const dirty =
     urlDraft.trim() !== baseURL || modelDraft.trim() !== modelId;
@@ -418,17 +453,53 @@ function OpenAICompatibleBlock({
         </FieldRow>
 
         <FieldRow label="Model ID">
-          <Input
-            value={modelDraft}
-            onChange={(e) => setModelDraft(e.target.value)}
-            onBlur={() => {
-              const v = modelDraft.trim();
-              if (v !== modelId) void setOpenaiCompatibleModelId(v);
-            }}
-            placeholder="gpt-4o, qwen3-max, glm-4.6, …"
-            spellCheck={false}
-            className="h-8 font-mono text-[11.5px]"
-          />
+          <div className="flex flex-1 gap-1.5">
+            <Input
+              value={modelDraft}
+              onChange={(e) => setModelDraft(e.target.value)}
+              onBlur={() => {
+                const v = modelDraft.trim();
+                if (v !== modelId) void setOpenaiCompatibleModelId(v);
+              }}
+              placeholder="gpt-4o, qwen3-max, glm-4.6, …"
+              spellCheck={false}
+              className="h-8 flex-1 font-mono text-[11.5px]"
+            />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={compatModels.length === 0}
+                  className="h-8 px-3 text-[11px]"
+                >
+                  Pick
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-80 min-w-[320px] overflow-y-auto">
+                {compatModels.map((m) => (
+                  <DropdownMenuItem
+                    key={m.id}
+                    onSelect={() => {
+                      setModelDraft(m.id);
+                      void setOpenaiCompatibleModelId(m.id);
+                    }}
+                    className={cn(
+                      "flex min-w-0 flex-col items-start",
+                      m.id === modelDraft && "bg-accent/50",
+                    )}
+                  >
+                    <span className="font-mono text-[11px]">{m.id}</span>
+                    {m.ownedBy ? (
+                      <span className="text-[10px] text-muted-foreground">
+                        {m.ownedBy}
+                      </span>
+                    ) : null}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
         </FieldRow>
 
         <FieldRow label="API key">
@@ -479,6 +550,19 @@ function OpenAICompatibleBlock({
         </FieldRow>
 
         <StatusLine status={testStatus} />
+        {compatModelsStatus === "loading" ? (
+          <p className="text-[10.5px] text-muted-foreground">
+            Loading model list from <span className="font-mono">/models</span>…
+          </p>
+        ) : compatModelsStatus === "fail" ? (
+          <p className="text-[10.5px] text-amber-600 dark:text-amber-400">
+            Could not load <span className="font-mono">/models</span> from endpoint.
+          </p>
+        ) : compatModels.length > 0 ? (
+          <p className="text-[10.5px] text-muted-foreground">
+            {compatModels.length} models detected from endpoint.
+          </p>
+        ) : null}
       </div>
     </div>
   );

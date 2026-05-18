@@ -10,6 +10,7 @@ import {
   loadPreferences,
   onPreferencesChange,
   setTheme as persistTheme,
+  type EditorThemeId,
   type ThemePref,
 } from "@/modules/settings/store";
 
@@ -59,6 +60,8 @@ export function ThemeProvider({
       ? true
       : window.matchMedia("(prefers-color-scheme: dark)").matches,
   );
+  const [editorTheme, setEditorTheme] = useState<EditorThemeId>("atomone");
+  const [appFontSize, setAppFontSize] = useState(14);
 
   // Hydrate from the persistent store (cross-window source of truth).
   useEffect(() => {
@@ -66,12 +69,18 @@ export function ThemeProvider({
     void loadPreferences().then((p) => {
       if (!alive) return;
       setThemeState(p.theme);
+      setEditorTheme(p.editorTheme);
+      setAppFontSize(p.appFontSize);
       writeFastTheme(p.theme);
     });
     const unlistenP = onPreferencesChange((key, value) => {
       if (key === "theme" && (value === "system" || value === "light" || value === "dark")) {
         setThemeState(value);
         writeFastTheme(value);
+      } else if (key === "editorTheme" && typeof value === "string") {
+        setEditorTheme(value as EditorThemeId);
+      } else if (key === "appFontSize" && typeof value === "number") {
+        setAppFontSize(value);
       }
     });
     return () => {
@@ -94,7 +103,9 @@ export function ThemeProvider({
     const root = document.documentElement;
     root.classList.remove("light", "dark");
     root.classList.add(resolvedTheme);
-  }, [resolvedTheme]);
+    root.dataset.appTheme = editorTheme;
+    root.style.setProperty("--app-font-size", `${appFontSize}px`);
+  }, [resolvedTheme, editorTheme, appFontSize]);
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);

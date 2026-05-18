@@ -41,6 +41,7 @@ export const EDITOR_THEME_LABELS: Record<EditorThemeId, string> = {
 
 export type Preferences = {
   theme: ThemePref;
+  appFontSize: number;
   defaultModelId: ModelId;
   editorTheme: EditorThemeId;
   customInstructions: string;
@@ -67,6 +68,7 @@ export type Preferences = {
 
 const STORE_PATH = "terax-settings.json";
 const KEY_THEME = "theme";
+const KEY_APP_FONT_SIZE = "appFontSize";
 const KEY_DEFAULT_MODEL = "defaultModelId";
 const KEY_EDITOR_THEME = "editorTheme";
 const KEY_CUSTOM_INSTRUCTIONS = "customInstructions";
@@ -94,9 +96,15 @@ const KEY_SHORTCUTS = "shortcuts";
 export const TERMINAL_FONT_SIZE_DEFAULT = 14;
 export const TERMINAL_FONT_SIZE_MIN = 8;
 export const TERMINAL_FONT_SIZE_MAX = 32;
+export const APP_FONT_SIZE_DEFAULT = 14;
+export const APP_FONT_SIZE_MIN = 8;
+export const APP_FONT_SIZE_MAX = 22;
+export const APP_FONT_SIZES = [
+  8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22,
+] as const;
 
 export const TERMINAL_FONT_SIZES = [
-  10, 12, 13, 14, 15, 16, 18, 20, 22, 24,
+  8, 9, 10, 12, 13, 14, 15, 16, 18, 20, 22, 24,
 ] as const;
 
 export const TERMINAL_SCROLLBACK_DEFAULT = 2000;
@@ -108,6 +116,7 @@ export const TERMINAL_SCROLLBACK_PRESETS = [
 
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: "system",
+  appFontSize: APP_FONT_SIZE_DEFAULT,
   defaultModelId: DEFAULT_MODEL_ID,
   editorTheme: "atomone",
   customInstructions: "",
@@ -154,6 +163,8 @@ export async function loadPreferences(): Promise<Preferences> {
   const get = <T>(k: string): T | undefined => map.get(k) as T | undefined;
   return {
     theme: get<ThemePref>(KEY_THEME) ?? DEFAULT_PREFERENCES.theme,
+    appFontSize:
+      get<number>(KEY_APP_FONT_SIZE) ?? DEFAULT_PREFERENCES.appFontSize,
     defaultModelId:
       get<ModelId>(KEY_DEFAULT_MODEL) ?? DEFAULT_PREFERENCES.defaultModelId,
     editorTheme:
@@ -216,6 +227,13 @@ export async function loadPreferences(): Promise<Preferences> {
 
 export async function setTheme(value: ThemePref): Promise<void> {
   await writePref(KEY_THEME, value);
+}
+
+export async function setAppFontSize(value: number): Promise<void> {
+  const clamped = Number.isFinite(value)
+    ? Math.min(APP_FONT_SIZE_MAX, Math.max(APP_FONT_SIZE_MIN, Math.round(value)))
+    : APP_FONT_SIZE_DEFAULT;
+  await writePref(KEY_APP_FONT_SIZE, clamped);
 }
 
 export async function setDefaultModel(value: ModelId): Promise<void> {
@@ -338,6 +356,7 @@ export async function onPreferencesChange(
 ): Promise<UnlistenFn> {
   const map: Record<string, PrefKey> = {
     [KEY_THEME]: "theme",
+    [KEY_APP_FONT_SIZE]: "appFontSize",
     [KEY_DEFAULT_MODEL]: "defaultModelId",
     [KEY_EDITOR_THEME]: "editorTheme",
     [KEY_CUSTOM_INSTRUCTIONS]: "customInstructions",

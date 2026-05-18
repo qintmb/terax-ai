@@ -1,4 +1,4 @@
-import { detectTerminalFontFamily } from "@/lib/fonts";
+import { detectTerminalFontFamily, getTerminalFontFamily } from "@/lib/fonts";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { buildTerminalTheme } from "@/styles/terminalTheme";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -522,6 +522,21 @@ export function applyFontSize(size: number): void {
   for (const slot of slots) {
     if (slot.term.options.fontSize === size) continue;
     slot.term.options.fontSize = size;
+    slot.fitAddon.fit();
+    if (slot.currentLeafId !== null) {
+      slot.lastCols = slot.term.cols;
+      slot.lastRows = slot.term.rows;
+      const bridge = adapter?.resolveLeaf(slot.currentLeafId);
+      bridge?.resizePty(slot.term.cols, slot.term.rows);
+    }
+  }
+}
+
+export function applyFontFamily(): void {
+  const fontFamily = getTerminalFontFamily();
+  for (const slot of slots) {
+    if (slot.term.options.fontFamily === fontFamily) continue;
+    slot.term.options.fontFamily = fontFamily;
     slot.fitAddon.fit();
     if (slot.currentLeafId !== null) {
       slot.lastCols = slot.term.cols;

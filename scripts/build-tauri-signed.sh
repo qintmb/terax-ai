@@ -1,6 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [[ -f .env.tauri-signing ]]; then
+  # shellcheck disable=SC1091
+  source .env.tauri-signing
+fi
+
 KEY_PATH="${TAURI_SIGNING_KEY_PATH:-$HOME/.tauri/qintmb-terax-ai.key}"
 
 if [[ ! -f "$KEY_PATH" ]]; then
@@ -15,8 +20,7 @@ if [[ -z "${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" ]]; then
   echo
 fi
 
-export TAURI_SIGNING_PRIVATE_KEY
-TAURI_SIGNING_PRIVATE_KEY="$(cat "$KEY_PATH")"
+export TAURI_SIGNING_PRIVATE_KEY_PATH="$KEY_PATH"
 export TAURI_SIGNING_PRIVATE_KEY_PASSWORD
 
 pnpm tauri build "$@"

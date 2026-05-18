@@ -226,7 +226,13 @@ function makeChat(sessionId: string): Chat<UIMessage> {
   const transport = createContextAwareTransport({
     getKeys: () => useChatStore.getState().apiKeys,
     toolContext,
-    getModelId: () => useChatStore.getState().selectedModelId,
+    getModelId: () => {
+      const selected = useChatStore.getState().selectedModelId;
+      const { activeId, customAgents } = useAgentsStore.getState();
+      const all = [...BUILTIN_AGENTS, ...customAgents];
+      const a = all.find((x) => x.id === activeId) ?? BUILTIN_AGENTS[0];
+      return (a.preferredModelId?.trim() || selected) as ModelId;
+    },
     getCustomInstructions: () =>
       usePreferencesStore.getState().customInstructions,
     getAgentPersona: () => {
@@ -249,8 +255,18 @@ function makeChat(sessionId: string): Chat<UIMessage> {
     getLmstudioModelId: () => usePreferencesStore.getState().lmstudioModelId,
     getOpenaiCompatibleBaseURL: () =>
       usePreferencesStore.getState().openaiCompatibleBaseURL,
-    getOpenaiCompatibleModelId: () =>
-      usePreferencesStore.getState().openaiCompatibleModelId,
+    getOpenaiCompatibleModelId: () => {
+      const { activeId, customAgents } = useAgentsStore.getState();
+      const all = [...BUILTIN_AGENTS, ...customAgents];
+      const a = all.find((x) => x.id === activeId) ?? BUILTIN_AGENTS[0];
+      if (
+        a.preferredModelId === "openai-compatible-custom" &&
+        a.preferredOpenaiCompatibleModelId?.trim()
+      ) {
+        return a.preferredOpenaiCompatibleModelId;
+      }
+      return usePreferencesStore.getState().openaiCompatibleModelId;
+    },
     onStep: (step) => {
       useChatStore.getState().patchAgentMeta({ step });
     },

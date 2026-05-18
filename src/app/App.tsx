@@ -83,6 +83,7 @@ import {
   type WorkspaceEnv,
 } from "@/modules/workspace";
 import { homeDir } from "@tauri-apps/api/path";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import type { SearchAddon } from "@xterm/addon-search";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -94,6 +95,10 @@ function dirname(path: string | null): string | null {
   const idx = normalized.lastIndexOf("/");
   if (idx <= 0) return normalized;
   return normalized.slice(0, idx);
+}
+
+function shellQuote(path: string): string {
+  return `'${path.replace(/'/g, `'\\''`)}'`;
 }
 
 const SIDEBAR_DEFAULT_WIDTH = 260;
@@ -656,9 +661,7 @@ export default function App() {
       if (activeLeafId === null) return;
       const term = terminalRefs.current.get(activeLeafId);
       if (!term) return;
-      const quoted = path.includes(" ")
-        ? `'${path.replace(/'/g, `'\\''`)}'`
-        : path;
+      const quoted = shellQuote(path);
       term.write(`cd ${quoted}\r`);
       term.focus();
     },
@@ -673,9 +676,7 @@ export default function App() {
         if (!tab || tab.kind !== "terminal") return;
         const t = terminalRefs.current.get(tab.activeLeafId);
         if (!t) return;
-        const quoted = path.includes(" ")
-          ? `'${path.replace(/'/g, `'\\''`)}'`
-          : path;
+        const quoted = shellQuote(path);
         t.write(`cd ${quoted}\r`);
         t.focus();
       }, 80);
@@ -939,6 +940,36 @@ export default function App() {
     [setLeafCwd],
   );
 
+  const insertDroppedPaths = useCallback(
+    async (paths: string[]) => {
+      const clean = paths.filter(Boolean);
+      if (clean.length === 0) return false;
+      const quoted = clean.map(shellQuote).join(" ");
+      const active = tabsRef.current.find((t) => t.id === activeId);
+      if (active?.kind === "terminal") {
+        const term = terminalRefs.current.get(active.activeLeafId);
+        if (!term) return false;
+        term.write(`${quoted} `);
+        term.focus();
+        return true;
+      }
+
+      let opened = false;
+      for (const path of clean) {
+        try {
+          const stat = await native.stat(path);
+          if (stat.kind !== "file") continue;
+          openFileTab(path, false);
+          opened = true;
+        } catch {
+          // Ignore unreadable paths and continue remaining drops.
+        }
+      }
+      return opened;
+    },
+    [activeId, openFileTab],
+  );
+
   const handleFocusLeaf = useCallback(
     (tabId: number, leafId: number) => focusPane(tabId, leafId),
     [focusPane],
@@ -1034,6 +1065,27 @@ export default function App() {
       },
     });
   }, [setLive, activeId, tabs, explorerRoot, launchCwd, home, openPreviewTab]);
+
+  useEffect(() => {
+    let disposed = false;
+    let unlisten: (() => void) | null = null;
+    void getCurrentWindow()
+      .onDragDropEvent((event) => {
+        if (event.payload.type !== "drop") return;
+        void insertDroppedPaths(event.payload.paths);
+      })
+      .then((fn) => {
+        if (disposed) fn();
+        else unlisten = fn;
+      })
+      .catch((err) => {
+        console.error("[terax] drag-drop setup failed:", err);
+      });
+    return () => {
+      disposed = true;
+      unlisten?.();
+    };
+  }, [insertDroppedPaths]);
 
   const workspaceSurface = (
     <div className="relative h-full min-h-0">

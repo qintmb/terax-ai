@@ -39,7 +39,7 @@ import {
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { motion } from "motion/react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getModel,
   MODELS,
@@ -52,8 +52,13 @@ import {
 } from "../config";
 import { ACCEPTED_FILES, useComposer } from "../lib/composer";
 import { toggleFavoriteModel } from "../lib/modelPrefs";
+import {
+  fetchOpenAICompatibleModels,
+  type OpenAICompatibleModelInfo,
+} from "../lib/openaiCompatibleModels";
 import { useChatStore } from "../store/chatStore";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { setOpenaiCompatibleModelId } from "@/modules/settings/store";
 
 const PROVIDER_ICON = {
   openai: ChatGptIcon,
@@ -206,17 +211,49 @@ function ModelDropdown() {
   const setSelected = useChatStore((s) => s.setSelectedModelId);
   const favoriteIds = usePreferencesStore((s) => s.favoriteModelIds);
   const recentIds = usePreferencesStore((s) => s.recentModelIds);
+  const compatBaseURL = usePreferencesStore((s) => s.openaiCompatibleBaseURL);
+  const compatModelId = usePreferencesStore((s) => s.openaiCompatibleModelId);
   const current = getModel(selected);
   const [search, setSearch] = useState("");
   const [activeProvider, setActiveProvider] = useState<ProviderId | null>(null);
   const [tab, setTab] = useState<Tab>("all");
+  const [compatModels, setCompatModels] = useState<
+    OpenAICompatibleModelInfo[]
+  >([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const currentProviderHasKey = providerNeedsKey(current.provider)
     ? !!apiKeys[current.provider]
     : true;
+  const currentLabel =
+    selected === "openai-compatible-custom" && compatModelId.trim()
+      ? compatModelId.trim()
+      : current.label;
 
   const hasKeyFor = (id: ProviderId) =>
     providerNeedsKey(id) ? !!apiKeys[id] : true;
+
+  useEffect(() => {
+    let alive = true;
+    const run = async () => {
+      if (!compatBaseURL.trim()) {
+        setCompatModels([]);
+        return;
+      }
+      try {
+        const models = await fetchOpenAICompatibleModels(
+          compatBaseURL,
+          apiKeys["openai-compatible"],
+        );
+        if (alive) setCompatModels(models);
+      } catch {
+        if (alive) setCompatModels([]);
+      }
+    };
+    void run();
+    return () => {
+      alive = false;
+    };
+  }, [apiKeys, compatBaseURL]);
 
   const sortedProviders = useMemo(() => {
     const configured: (typeof PROVIDERS)[number][] = [];
@@ -230,13 +267,29 @@ function ModelDropdown() {
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    let pool: readonly ModelInfo[] = MODELS;
+    const dynamicCompat: ModelInfo[] = compatModels.map((m) => ({
+      id: `openai-compatible:${m.id}`,
+      provider: "openai-compatible",
+      label: m.id,
+      hint: m.ownedBy ?? "Custom",
+      description: m.ownedBy
+        ? `OpenAI-compatible · ${m.ownedBy}`
+        : "OpenAI-compatible model",
+      capabilities: { intelligence: 3, speed: 3, cost: 3 },
+      tags: ["tools", "coding"],
+    }));
+    let pool: readonly ModelInfo[] = [...MODELS, ...dynamicCompat];
     if (tab === "favorites") {
-      pool = pool.filter((m) => favoriteIds.includes(m.id));
+      pool = pool.filter(
+        (m) =>
+          !m.id.startsWith("openai-compatible:") && favoriteIds.includes(m.id),
+      );
     } else if (tab === "recent") {
       const order = new Map(recentIds.map((id, i) => [id, i]));
       pool = pool
-        .filter((m) => order.has(m.id))
+        .filter(
+          (m) => !m.id.startsWith("openai-compatible:") && order.has(m.id),
+        )
         .slice()
         .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
     }
@@ -254,7 +307,7 @@ function ModelDropdown() {
       );
     }
     return pool;
-  }, [activeProvider, favoriteIds, recentIds, search, tab]);
+  }, [activeProvider, compatModels, favoriteIds, recentIds, search, tab]);
 
   return (
     <DropdownMenu>
@@ -271,11 +324,11 @@ function ModelDropdown() {
           )}
           title={
             currentProviderHasKey
-              ? `Model: ${current.label}`
-              : `${current.label} — no key configured`
+              ? `Model: ${currentLabel}`
+              : `${currentLabel} — no key configured`
           }
         >
-          {current.label}
+          {currentLabel}
           <HugeiconsIcon
             icon={ArrowDown01Icon}
             size={11}
@@ -382,7 +435,12 @@ function ModelDropdown() {
                 <ModelRow
                   key={m.id}
                   model={m}
-                  selected={m.id === selected}
+                  selected={
+                    m.id === selected ||
+                    (m.id.startsWith("openai-compatible:") &&
+                      selected === "openai-compatible-custom" &&
+                      m.id.slice("openai-compatible:".length) === compatModelId)
+                  }
                   hasKey={hasKeyFor(m.provider)}
                   favorite={favoriteIds.includes(m.id)}
                   showProviderIcon={activeProvider === null}
@@ -391,9 +449,19 @@ function ModelDropdown() {
                       void openSettingsWindow("models");
                       return;
                     }
+                    if (m.id.startsWith("openai-compatible:")) {
+                      void setOpenaiCompatibleModelId(
+                        m.id.slice("openai-compatible:".length),
+                      );
+                      setSelected("openai-compatible-custom");
+                      return;
+                    }
                     setSelected(m.id as ModelId);
                   }}
-                  onToggleFavorite={() => void toggleFavoriteModel(m.id)}
+                  onToggleFavorite={() =>
+                    !m.id.startsWith("openai-compatible:") &&
+                    void toggleFavoriteModel(m.id)
+                  }
                 />
               ))
             )}

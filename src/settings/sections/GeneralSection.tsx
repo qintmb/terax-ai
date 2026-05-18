@@ -16,11 +16,13 @@ import { cn } from "@/lib/utils";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { ThemePref } from "@/modules/settings/store";
 import {
+  APP_FONT_SIZES,
   EDITOR_THEME_LABELS,
   EDITOR_THEMES,
   TERMINAL_FONT_SIZES,
   TERMINAL_SCROLLBACK_PRESETS,
   setAutostart,
+  setAppFontSize,
   setEditorTheme,
   setRestoreWindowState,
   setShowHidden,
@@ -56,6 +58,7 @@ const APPEARANCE: {
 export function GeneralSection() {
   const { theme, setTheme } = useTheme();
   const editorTheme = usePreferencesStore((s) => s.editorTheme);
+  const appFontSize = usePreferencesStore((s) => s.appFontSize);
   const autostart = usePreferencesStore((s) => s.autostart);
   const restoreWindowState = usePreferencesStore((s) => s.restoreWindowState);
   const vimMode = usePreferencesStore((s) => s.vimMode);
@@ -94,6 +97,7 @@ export function GeneralSection() {
   };
 
   const onPickEditor = (id: EditorThemeId) => void setEditorTheme(id);
+  const onPickAppFontSize = (size: number) => void setAppFontSize(size);
 
   const onToggleTerminalWebgl = (next: boolean) => {
     void setTerminalWebglEnabled(next).catch((e) =>
@@ -135,7 +139,7 @@ export function GeneralSection() {
       </div>
 
       <div className="flex flex-col gap-2">
-        <Label>Editor theme</Label>
+        <Label>Code editor theme</Label>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -166,6 +170,9 @@ export function GeneralSection() {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
+        <p className="text-[11px] text-muted-foreground">
+          Applies to editor panes and gives app chrome matching dark accents for some themes.
+        </p>
         <SettingRow
           title="Vim mode"
           description="Enable Vim keybindings in the code editor."
@@ -174,6 +181,48 @@ export function GeneralSection() {
             checked={vimMode}
             onCheckedChange={(v) => void setVimMode(v)}
           />
+        </SettingRow>
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label>Application</Label>
+        <SettingRow
+          title="Font size"
+          description="UI text size for settings, panels, menus, and chat."
+        >
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="outline"
+                className="h-8 justify-between gap-2 rounded-none px-2.5 text-[12px]"
+              >
+                <span>{appFontSize} px</span>
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  size={12}
+                  strokeWidth={2}
+                  className="opacity-70"
+                />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent
+              align="end"
+              className="min-w-[80px] rounded-none border border-border bg-popover p-0 shadow-none ring-0"
+            >
+              {APP_FONT_SIZES.map((size) => (
+                <DropdownMenuItem
+                  key={size}
+                  onSelect={() => onPickAppFontSize(size)}
+                  className={cn(
+                    "rounded-none px-3 py-1.5 text-[12px]",
+                    size === appFontSize && "bg-accent/50",
+                  )}
+                >
+                  {size} px
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </SettingRow>
       </div>
 

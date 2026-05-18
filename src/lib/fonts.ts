@@ -1,11 +1,11 @@
 const NERD_FONT_CANDIDATES = [
+  "MesloLGS NF",
+  "MesloLGM Nerd Font",
   "JetBrainsMono Nerd Font",
   "JetBrainsMono Nerd Font Mono",
   "JetBrainsMonoNL Nerd Font",
   "FiraCode Nerd Font",
   "FiraCode Nerd Font Mono",
-  "MesloLGS NF",
-  "MesloLGM Nerd Font",
   "Hack Nerd Font",
   "Hack Nerd Font Mono",
   "CaskaydiaCove Nerd Font",
@@ -17,7 +17,8 @@ const NERD_FONT_CANDIDATES = [
 ];
 
 const FALLBACK_CHAIN = '"JetBrains Mono", SFMono-Regular, Menlo, monospace';
-const MENLO_FIRST_CHAIN = 'Menlo, "JetBrains Mono", SFMono-Regular, monospace';
+const MENLO_FIRST_CHAIN =
+  'Menlo, "MesloLGS NF", "MesloLGM Nerd Font", "JetBrains Mono", SFMono-Regular, monospace';
 
 let detected: string | null = null;
 let terminalDetected: string | null = null;
@@ -72,4 +73,8 @@ export function detectTerminalFontFamily(): string {
   }
   terminalDetected = detectMonoFontFamily();
   return terminalDetected;
+}
+
+export function getTerminalFontFamily(): string {
+  return MENLO_FIRST_CHAIN;
 }

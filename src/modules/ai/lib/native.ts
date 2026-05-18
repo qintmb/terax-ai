@@ -13,6 +13,12 @@ export type DirEntry = {
   mtime: number;
 };
 
+export type FileStat = {
+  kind: "file" | "dir" | "symlink";
+  size: number;
+  mtime: number;
+};
+
 export type CommandOutput = {
   stdout: string;
   stderr: string;
@@ -140,6 +146,11 @@ export const native = {
     }),
   canonicalize: (path: string) =>
     invoke<string>("fs_canonicalize", {
+      path,
+      workspace: currentWorkspaceEnv(),
+    }),
+  stat: (path: string) =>
+    invoke<FileStat>("fs_stat", {
       path,
       workspace: currentWorkspaceEnv(),
     }),

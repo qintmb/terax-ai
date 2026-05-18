@@ -15,6 +15,8 @@ export type Agent = {
   instructions: string;
   icon: AgentIconId;
   builtIn: boolean;
+  preferredModelId?: string | null;
+  preferredOpenaiCompatibleModelId?: string | null;
 };
 
 export const BUILTIN_AGENTS: readonly Agent[] = [
