@@ -24,11 +24,11 @@ fi
 
 gh secret set TAURI_SIGNING_PRIVATE_KEY \
   --repo "$REPO" \
-  --body-file "$KEY_PATH"
+  --body "$(cat "$KEY_PATH")"
 
-printf "%s" "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" | gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
+gh secret set TAURI_SIGNING_PRIVATE_KEY_PASSWORD \
   --repo "$REPO" \
-  --body-file -
+  --body "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD"
 
 echo "GitHub secrets updated for $REPO"
 if [[ -f "$PUBKEY_PATH" ]]; then
