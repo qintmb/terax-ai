@@ -2,6 +2,26 @@
 
 All notable changes to Terax. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/) (pre-`1.0`, minor bumps may include breaking changes).
 
+## [0.6.9] — 2026-05-18
+
+### Added
+- Universal skills integration from `~/.agents/skills` and `~/.codex/skills`, with per-agent skill assignment in Settings.
+- Workspace layout save/restore for terminal tabs and split panes.
+- Persistent split pane sizes when saving workspace layout.
+- Drag and drop from file explorer into terminal workspace and AI chat input.
+- MCP-focused Extensions page with support for multiple MCP entries.
+
+### Changed
+- Auto-updater endpoint now points to `qintmb/terax-ai`.
+- Terminal workspace restore now starts shells in the home directory.
+- AI chat model picker stays in chat flow instead of redirecting to Settings.
+
+### Fixed
+- Settings dropdowns no longer auto-close immediately.
+- Sidebar width resizing works again.
+- Theme application now reaches editor surface, not only terminal shell.
+- Explorer and AI chat attachment flows are more flexible for file path drops.
+
 ## [0.5.9] — 2026
 
 ## Added

@@ -45,6 +45,7 @@ type Props = {
   onPathDeleted?: (path: string) => void;
   onRevealInTerminal?: (path: string) => void;
   onAttachToAgent?: (path: string) => void;
+  onDragPath?: (path: string) => void;
 };
 
 type Row =
@@ -151,6 +152,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
       onPathDeleted,
       onRevealInTerminal,
       onAttachToAgent,
+      onDragPath,
     },
     ref,
   ) {
@@ -338,6 +340,7 @@ export const FileExplorer = forwardRef<FileExplorerHandle, Props>(
               isRenaming={row.kind === "rename"}
               onOpenFile={onOpenFile}
               onSelectPath={setSelectedPath}
+              onDragPath={onDragPath}
               onRevealInTerminal={onRevealInTerminal}
               onAttachToAgent={onAttachToAgent}
             />

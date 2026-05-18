@@ -4,10 +4,12 @@ import { runAgentStream, type AgentUsageDelta } from "./agent";
 import type { ProviderKeys } from "./keyring";
 import { native } from "./native";
 import type { ToolContext } from "../tools/tools";
+import { readUniversalSkills } from "./universalSkills";
 
 const TERAX_MD_MAX_BYTES = 32 * 1024;
 type MemoryCacheEntry = { content: string | null; mtime: number };
 const projectMemoryCache = new Map<string, MemoryCacheEntry>();
+const SKILLS_MAX_BYTES = 48 * 1024;
 
 async function readTeraxMd(workspaceRoot: string | null): Promise<string | null> {
   if (!workspaceRoot) return null;
@@ -44,7 +46,11 @@ type Deps = {
   toolContext: ToolContext;
   getModelId: () => ModelId;
   getCustomInstructions: () => string;
-  getAgentPersona: () => { name: string; instructions: string } | null;
+  getAgentPersona: () => {
+    name: string;
+    instructions: string;
+    skillIds?: string[];
+  } | null;
   getLive: () => LiveSnapshot;
   getLmstudioBaseURL?: () => string | undefined;
   getLmstudioModelId?: () => string | undefined;
@@ -67,6 +73,9 @@ export function createContextAwareTransport(deps: Deps) {
   const run = async (options: SendOptions) => {
     const live = deps.getLive();
     const projectMemory = await readTeraxMd(live.workspaceRoot);
+    const agent = deps.getAgentPersona();
+    const activeSkillIds = (agent as { skillIds?: string[] } | null)?.skillIds ?? [];
+    const universalSkills = await formatUniversalSkills(activeSkillIds);
     const envBlock = formatEnvBlock(live);
     const messagesForRun = envBlock
       ? injectEnvIntoLastUser(options.messages, envBlock)
@@ -75,7 +84,7 @@ export function createContextAwareTransport(deps: Deps) {
       keys: deps.getKeys(),
       modelId: deps.getModelId(),
       customInstructions: deps.getCustomInstructions(),
-      agentPersona: deps.getAgentPersona(),
+      agentPersona: agent,
       toolContext: deps.toolContext,
       onStep: deps.onStep,
       onUsage: deps.onUsage,
@@ -87,6 +96,7 @@ export function createContextAwareTransport(deps: Deps) {
       openaiCompatibleModelId: deps.getOpenaiCompatibleModelId?.(),
       planMode: deps.getPlanMode?.(),
       projectMemory,
+      universalSkills,
       uiMessages: messagesForRun,
       abortSignal: options.abortSignal,
     });
@@ -101,6 +111,25 @@ export function createContextAwareTransport(deps: Deps) {
       return null;
     },
   };
+}
+
+async function formatUniversalSkills(ids: string[]): Promise<string | null> {
+  if (ids.length === 0) return null;
+  try {
+    const skills = await readUniversalSkills(ids);
+    const blocks: string[] = [];
+    let total = 0;
+    for (const skill of skills) {
+      const block = `### ${skill.name}\nsource: ${skill.path}\n\n${skill.content.trim()}`;
+      total += block.length;
+      if (total > SKILLS_MAX_BYTES) break;
+      blocks.push(block);
+    }
+    return blocks.length ? blocks.join("\n\n") : null;
+  } catch (error) {
+    console.warn("[terax] failed to load universal skills", error);
+    return null;
+  }
 }
 
 function injectEnvIntoLastUser(

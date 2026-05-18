@@ -33,6 +33,7 @@ export type EntryRowProps = {
   isRenaming: boolean;
   onOpenFile: (path: string, pin?: boolean) => void;
   onSelectPath: (path: string) => void;
+  onDragPath?: (path: string) => void;
   onRevealInTerminal?: (path: string) => void;
   onAttachToAgent?: (path: string) => void;
 };
@@ -50,6 +51,7 @@ function EntryRowImpl(props: EntryRowProps) {
     isRenaming,
     onOpenFile,
     onSelectPath,
+    onDragPath,
     onRevealInTerminal,
     onAttachToAgent,
   } = props;
@@ -90,8 +92,15 @@ function EntryRowImpl(props: EntryRowProps) {
           <button
             type="button"
             data-fs-path={path}
+            draggable
             onClick={handleClick}
             onDoubleClick={() => !isDir && tree.beginRename(path)}
+            onDragStart={(event) => {
+              event.dataTransfer.effectAllowed = "copy";
+              event.dataTransfer.setData("application/x-terax-path", path);
+              event.dataTransfer.setData("text/plain", path);
+              onDragPath?.(path);
+            }}
             className={cn(
               "group flex h-6 w-full min-w-0 cursor-pointer items-center gap-2 rounded-sm px-1.5 text-left text-[13px] text-foreground/85 transition-colors hover:bg-accent/70",
               isSelected && "bg-accent text-foreground",

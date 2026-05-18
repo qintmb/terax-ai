@@ -135,10 +135,6 @@ export function ThemeProvider({
     root.dataset.appTheme = editorTheme;
     root.style.setProperty("--app-font-size", `${appFontSize}px`);
     root.style.setProperty("--ui-font-family", `"${appFontFamily}", sans-serif`);
-    root.style.setProperty(
-      "--ui-scale",
-      String(Math.max(0.75, appFontSize / 14)),
-    );
     applyCustomThemeCss(root, editorThemeCustomCss);
   }, [resolvedTheme, editorTheme, appFontSize, appFontFamily, editorThemeCustomCss]);
 

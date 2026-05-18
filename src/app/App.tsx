@@ -141,6 +141,11 @@ function readSidebarView(): SidebarViewId {
   return "explorer";
 }
 
+function sidebarPxToPercent(px: number): number {
+  const width = Math.max(1, window.innerWidth);
+  return Math.min(45, Math.max(10, (px / width) * 100));
+}
+
 export default function App() {
   const {
     tabs,
@@ -160,12 +165,15 @@ export default function App() {
     updateTab,
     selectByIndex,
     setLeafCwd,
+    setPaneSplitSizes,
     focusPane,
     focusNextPaneInTab,
     splitActivePane,
     closeActivePane,
     closePaneByLeaf,
     resetWorkspace,
+    saveWorkspaceLayout,
+    restoreWorkspaceLayout,
   } = useTabs();
 
   // Mirror `tabs` into a ref so callbacks scheduled with `setTimeout`
@@ -194,6 +202,7 @@ export default function App() {
 
   const sidebarRef = useRef<PanelImperativeHandle | null>(null);
   const sidebarWidthRef = useRef(readSidebarWidth());
+  const draggingExplorerPathRef = useRef<string | null>(null);
   const sidebarWidthWriteTimerRef = useRef(0);
   const [sidebarView, setSidebarViewState] = useState<SidebarViewId>(readSidebarView);
   const persistSidebarView = useCallback((view: SidebarViewId) => {
@@ -215,7 +224,7 @@ export default function App() {
       const panel = sidebarRef.current;
       const collapsed = panel ? panel.getSize().asPercentage <= 0 : false;
       if (collapsed) {
-        if (panel) panel.resize(`${sidebarWidthRef.current}px`);
+        if (panel) panel.resize(sidebarPxToPercent(sidebarWidthRef.current));
         if (view !== sidebarView) persistSidebarView(view);
         return;
       }
@@ -254,7 +263,7 @@ export default function App() {
     const panel = sidebarRef.current;
     const collapsed = panel ? panel.getSize().asPercentage <= 0 : false;
     if (sidebarView !== "explorer" || collapsed) {
-      if (panel && collapsed) panel.resize(`${sidebarWidthRef.current}px`);
+      if (panel && collapsed) panel.resize(sidebarPxToPercent(sidebarWidthRef.current));
       if (sidebarView !== "explorer") persistSidebarView("explorer");
       const active = document.activeElement;
       explorerReturnFocusRef.current =
@@ -282,6 +291,7 @@ export default function App() {
   }, [persistSidebarView, sidebarView]);
 
   const [home, setHome] = useState<string | null>(null);
+  const restoredWorkspaceRef = useRef(false);
   const [pendingCloseTab, setPendingCloseTab] = useState<number | null>(null);
   const workspaceEnv = useWorkspaceEnvStore((s) => s.env);
   const setWorkspaceEnv = useWorkspaceEnvStore((s) => s.setEnv);
@@ -303,6 +313,16 @@ export default function App() {
       })
       .catch(() => setHome(null));
   }, []);
+
+  useEffect(() => {
+    if (restoredWorkspaceRef.current) return;
+    if (!home) return;
+    restoredWorkspaceRef.current = true;
+    const restored = restoreWorkspaceLayout(home);
+    if (!restored) {
+      resetWorkspace(home);
+    }
+  }, [home, resetWorkspace, restoreWorkspaceLayout]);
 
   const switchWorkspace = useCallback(
     async (env: WorkspaceEnv) => {
@@ -655,6 +675,21 @@ export default function App() {
   const openNewPrivateTab = useCallback(() => {
     newPrivateTab(inheritedCwdForNewTab());
   }, [newPrivateTab, inheritedCwdForNewTab]);
+
+  const handleSaveWorkspace = useCallback(() => {
+    const ok = saveWorkspaceLayout();
+    window.alert(ok ? "Workspace layout saved." : "Could not save workspace layout.");
+  }, [saveWorkspaceLayout]);
+
+  const handleRestoreWorkspace = useCallback(() => {
+    const restored = restoreWorkspaceLayout(home ?? undefined);
+    if (!restored && home) {
+      resetWorkspace(home);
+    }
+    if (!restored) {
+      window.alert("No saved workspace layout found.");
+    }
+  }, [home, resetWorkspace, restoreWorkspaceLayout]);
 
   const sendCd = useCallback(
     (path: string) => {
@@ -1026,6 +1061,12 @@ export default function App() {
 
   const activeCwd = activeTerminalLeafCwd;
 
+  const consumeDraggedExplorerPath = useCallback(() => {
+    const path = draggingExplorerPathRef.current;
+    draggingExplorerPathRef.current = null;
+    return path;
+  }, []);
+
   useEffect(() => {
     const findCwd = () => {
       const active = tabs.find((x) => x.id === activeId);
@@ -1108,12 +1149,25 @@ export default function App() {
   const workspaceSurface = (
     <div className="relative h-full min-h-0">
       <div
-        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0 px-3 pt-2 pb-2",
           !isTerminalTab && "invisible pointer-events-none",
         )}
         aria-hidden={!isTerminalTab}
+        onDragOver={(event) => {
+          if (event.dataTransfer.types.includes("application/x-terax-path")) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "copy";
+          }
+        }}
+        onDrop={(event) => {
+          const path =
+            event.dataTransfer.getData("application/x-terax-path") ||
+            consumeDraggedExplorerPath();
+          if (!path) return;
+          event.preventDefault();
+          void insertDroppedPaths([path], "workspace");
+        }}
       >
         <TerminalStack
           tabs={tabs}
@@ -1123,10 +1177,10 @@ export default function App() {
           onCwd={handleTerminalCwd}
           onExit={handleLeafExit}
           onFocusLeaf={handleFocusLeaf}
+          onSplitResize={setPaneSplitSizes}
         />
       </div>
       <div
-        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0 px-3 pt-2 pb-2",
           !isEditorTab && "invisible pointer-events-none",
@@ -1142,7 +1196,6 @@ export default function App() {
         />
       </div>
       <div
-        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0 px-3 pt-2 pb-2",
           !isPreviewTab && "invisible pointer-events-none",
@@ -1157,7 +1210,6 @@ export default function App() {
         />
       </div>
       <div
-        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0 px-3 pt-2 pb-2",
           !isAiDiffTab && "invisible pointer-events-none",
@@ -1172,7 +1224,6 @@ export default function App() {
         />
       </div>
       <div
-        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0 px-3 pt-2 pb-2",
           !isGitDiffTab && "invisible pointer-events-none",
@@ -1182,7 +1233,6 @@ export default function App() {
         <GitDiffStack tabs={tabs} activeId={activeId} />
       </div>
       <div
-        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0",
           !isGitHistoryTab && "invisible pointer-events-none",
@@ -1214,6 +1264,8 @@ export default function App() {
             onPin={pinTab}
             onToggleSidebar={toggleSidebar}
             onSplit={splitActivePaneInActiveTab}
+            onSaveWorkspace={handleSaveWorkspace}
+            onRestoreWorkspace={handleRestoreWorkspace}
             canSplit={
               activeTerminalTab !== null &&
               leafIds(activeTerminalTab.paneTree).length < MAX_PANES_PER_TAB
@@ -1252,6 +1304,9 @@ export default function App() {
                         onPathDeleted={handlePathDeleted}
                         onRevealInTerminal={cdInNewTab}
                         onAttachToAgent={handleAttachFileToAgent}
+                        onDragPath={(path) => {
+                          draggingExplorerPathRef.current = path;
+                        }}
                       />
                     ) : sidebarView === "source-control" ? (
                       <SourceControlPanel

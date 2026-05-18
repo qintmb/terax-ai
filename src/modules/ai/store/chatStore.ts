@@ -236,10 +236,14 @@ function makeChat(sessionId: string): Chat<UIMessage> {
     getCustomInstructions: () =>
       usePreferencesStore.getState().customInstructions,
     getAgentPersona: () => {
-      const { activeId, customAgents } = useAgentsStore.getState();
+      const { activeId, customAgents, getSkillIds } = useAgentsStore.getState();
       const all = [...BUILTIN_AGENTS, ...customAgents];
       const a = all.find((x) => x.id === activeId) ?? BUILTIN_AGENTS[0];
-      return { name: a.name, instructions: a.instructions };
+      return {
+        name: a.name,
+        instructions: a.instructions,
+        skillIds: getSkillIds(a.id),
+      };
     },
     getLive: () => {
       const live = useChatStore.getState().live;

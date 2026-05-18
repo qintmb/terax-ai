@@ -216,6 +216,28 @@ export function AiInputBar() {
   return (
     <div
       data-ai-drop-target="true"
+      onDragOver={(e) => {
+        if (
+          e.dataTransfer.types.includes("Files") ||
+          e.dataTransfer.types.includes("application/x-terax-path")
+        ) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }
+      }}
+      onDrop={(e) => {
+        const path = e.dataTransfer.getData("application/x-terax-path");
+        if (path) {
+          e.preventDefault();
+          c.setValue((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}${path}`);
+          requestAnimationFrame(() => c.textareaRef.current?.focus());
+          return;
+        }
+        if (e.dataTransfer.files.length > 0) {
+          e.preventDefault();
+          void c.addFiles(e.dataTransfer.files);
+        }
+      }}
       className="shrink-0 border-t border-border/60 bg-card/40 px-3 py-2"
     >
       <div
@@ -246,6 +268,19 @@ export function AiInputBar() {
                 ref={c.textareaRef}
                 value={c.value}
                 onChange={(e) => c.setValue(e.target.value)}
+                onDragOver={(e) => {
+                  if (e.dataTransfer.types.includes("application/x-terax-path")) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = "copy";
+                  }
+                }}
+                onDrop={(e) => {
+                  const path = e.dataTransfer.getData("application/x-terax-path");
+                  if (!path) return;
+                  e.preventDefault();
+                  c.setValue((prev) => `${prev}${prev && !prev.endsWith(" ") ? " " : ""}${path}`);
+                  requestAnimationFrame(() => c.textareaRef.current?.focus());
+                }}
                 onKeyUp={updateTrigger}
                 onClick={updateTrigger}
                 onSelect={updateTrigger}

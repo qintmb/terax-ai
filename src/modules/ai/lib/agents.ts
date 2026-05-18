@@ -17,6 +17,7 @@ export type Agent = {
   builtIn: boolean;
   preferredModelId?: string | null;
   preferredOpenaiCompatibleModelId?: string | null;
+  skillIds?: string[];
 };
 
 export const BUILTIN_AGENTS: readonly Agent[] = [
@@ -84,12 +85,14 @@ export const BUILTIN_AGENTS: readonly Agent[] = [
 const STORE_PATH = "terax-ai-agents.json";
 const KEY_CUSTOM = "customAgents";
 const KEY_ACTIVE = "activeAgentId";
+const KEY_AGENT_SKILLS = "agentSkillIds";
 
 const store = new LazyStore(STORE_PATH, { defaults: {}, autoSave: 200 });
 
 export type LoadedAgents = {
   custom: Agent[];
   activeId: string;
+  agentSkillIds: Record<string, string[]>;
 };
 
 export async function loadAgents(): Promise<LoadedAgents> {
@@ -97,11 +100,17 @@ export async function loadAgents(): Promise<LoadedAgents> {
   const entries = await store.entries();
   let custom: Agent[] | undefined;
   let activeId: string | undefined;
+  let agentSkillIds: Record<string, string[]> | undefined;
   for (const [k, v] of entries) {
     if (k === KEY_CUSTOM) custom = v as Agent[];
     else if (k === KEY_ACTIVE) activeId = v as string;
+    else if (k === KEY_AGENT_SKILLS) agentSkillIds = v as Record<string, string[]>;
   }
-  return { custom: custom ?? [], activeId: activeId ?? BUILTIN_AGENTS[0].id };
+  return {
+    custom: custom ?? [],
+    activeId: activeId ?? BUILTIN_AGENTS[0].id,
+    agentSkillIds: agentSkillIds ?? {},
+  };
 }
 
 export async function saveCustomAgents(custom: Agent[]): Promise<void> {
@@ -111,6 +120,11 @@ export async function saveCustomAgents(custom: Agent[]): Promise<void> {
 
 export async function saveActiveAgentId(id: string): Promise<void> {
   await store.set(KEY_ACTIVE, id);
+  await store.save();
+}
+
+export async function saveAgentSkillIds(value: Record<string, string[]>): Promise<void> {
+  await store.set(KEY_AGENT_SKILLS, value);
   await store.save();
 }
 

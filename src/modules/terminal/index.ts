@@ -9,6 +9,7 @@ export {
   hasLeaf,
   isLeaf,
   leafIds,
+  setSplitChildSizes,
   type PaneId,
   type PaneNode,
   type SplitDir,

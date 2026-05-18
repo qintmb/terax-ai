@@ -9,7 +9,6 @@ import { Kbd } from "@/components/ui/kbd";
 import { Spinner } from "@/components/ui/spinner";
 import { fmtShortcut, MOD_KEY } from "@/lib/platform";
 import { cn } from "@/lib/utils";
-import { openSettingsWindow } from "@/modules/settings/openSettingsWindow";
 import {
   Add01Icon,
   AiBookIcon,
@@ -445,10 +444,7 @@ function ModelDropdown() {
                   favorite={favoriteIds.includes(m.id)}
                   showProviderIcon={activeProvider === null}
                   onPick={() => {
-                    if (!hasKeyFor(m.provider)) {
-                      void openSettingsWindow("models");
-                      return;
-                    }
+                    if (!hasKeyFor(m.provider)) return;
                     if (m.id.startsWith("openai-compatible:")) {
                       void setOpenaiCompatibleModelId(
                         m.id.slice("openai-compatible:".length),
@@ -560,15 +556,11 @@ function ProviderConfigureCTA({ providerId }: { providerId: ProviderId }) {
   return (
     <button
       type="button"
-      onClick={() => void openSettingsWindow("models")}
-      className="group mx-2 mb-1 flex w-[calc(100%-1rem)] items-center gap-2 rounded-md border border-dashed border-border/70 bg-muted/20 px-3 py-2 text-left text-[11px] text-muted-foreground transition-colors hover:border-border hover:bg-accent/40 hover:text-foreground"
+      className="mx-2 mb-1 flex w-[calc(100%-1rem)] items-center gap-2 rounded-md border border-dashed border-border/70 bg-muted/20 px-3 py-2 text-left text-[11px] text-muted-foreground"
     >
       <HugeiconsIcon icon={Settings01Icon} size={13} strokeWidth={1.75} />
       <span className="flex-1 truncate">
-        Configure {p.label} to use these models.
-      </span>
-      <span className="shrink-0 text-[10px] underline-offset-2 group-hover:underline">
-        Open
+        Configure {p.label} in Settings {"->"} Models to use these models.
       </span>
     </button>
   );

@@ -44,6 +44,8 @@ type Props = {
   onPin: (id: number) => void;
   onToggleSidebar: () => void;
   onSplit: (dir: "row" | "col") => void;
+  onSaveWorkspace: () => void;
+  onRestoreWorkspace: () => void;
   /** Active tab is a terminal and below the per-tab pane cap. */
   canSplit: boolean;
   onOpenShortcuts: () => void;
@@ -66,6 +68,8 @@ export function Header({
   onPin,
   onToggleSidebar,
   onSplit,
+  onSaveWorkspace,
+  onRestoreWorkspace,
   canSplit,
   onOpenShortcuts,
   onOpenSettings,
@@ -185,6 +189,12 @@ export function Header({
                   {splitDownTokens}
                 </span>
               )}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onSaveWorkspace}>
+              <span className="flex-1">Save workspace</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onRestoreWorkspace}>
+              <span className="flex-1">Restore workspace</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

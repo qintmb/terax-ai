@@ -20,6 +20,7 @@ type Props = {
   tabVisible: boolean;
   activeLeafId: number;
   onFocusLeaf: (leafId: number) => void;
+  onSplitResize: (splitId: number, sizes: number[]) => void;
   getBundle: (leafId: number) => LeafBundle;
 };
 
@@ -28,6 +29,7 @@ export function PaneTreeView({
   tabVisible,
   activeLeafId,
   onFocusLeaf,
+  onSplitResize,
   getBundle,
 }: Props) {
   if (node.kind === "leaf") {
@@ -63,16 +65,31 @@ export function PaneTreeView({
   return (
     <ResizablePanelGroup
       orientation={node.dir === "row" ? "horizontal" : "vertical"}
+      onLayoutChanged={(layout) =>
+        onSplitResize(
+          node.id,
+          node.children.map((child) => layout[`pane-${child.id}`] ?? child.size ?? 0),
+        )
+      }
     >
       {node.children.map((child, i) => (
         <Fragment key={child.id}>
           {i > 0 && <ResizableHandle />}
-          <ResizablePanel id={`pane-${child.id}`} minSize="10%">
+          <ResizablePanel
+            id={`pane-${child.id}`}
+            minSize="10%"
+            defaultSize={
+              typeof child.size === "number" && Number.isFinite(child.size)
+                ? `${child.size}%`
+                : undefined
+            }
+          >
             <PaneTreeView
               node={child}
               tabVisible={tabVisible}
               activeLeafId={activeLeafId}
               onFocusLeaf={onFocusLeaf}
+              onSplitResize={onSplitResize}
               getBundle={getBundle}
             />
           </ResizablePanel>

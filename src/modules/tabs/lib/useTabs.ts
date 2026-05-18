@@ -6,6 +6,7 @@ import {
   nextLeafId,
   removeLeaf,
   setLeafCwd as setLeafCwdInTree,
+  setSplitChildSizes,
   siblingLeafOf,
   splitLeaf,
   type PaneNode,
@@ -110,6 +111,30 @@ export type TabPatch = Partial<{
   url: string;
 }>;
 
+type SavedPaneNode =
+  | { kind: "leaf"; size?: number }
+  | {
+      kind: "split";
+      dir: SplitDir;
+      size?: number;
+      children: SavedPaneNode[];
+    };
+
+type SavedWorkspaceTab = {
+  title: string;
+  private?: boolean;
+  activeLeafIndex: number;
+  paneTree: SavedPaneNode;
+};
+
+type SavedWorkspaceLayout = {
+  version: 1;
+  tabs: SavedWorkspaceTab[];
+  activeTabIndex: number;
+};
+
+const WORKSPACE_LAYOUT_STORAGE_KEY = "terax.workspace.layout";
+
 function basename(path: string): string {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts.length ? parts[parts.length - 1] : path;
@@ -121,6 +146,43 @@ function titleFromUrl(url: string): string {
     return u.host || url;
   } catch {
     return url || "preview";
+  }
+}
+
+function serializePaneTree(node: PaneNode): SavedPaneNode {
+  if (node.kind === "leaf") return { kind: "leaf", size: node.size };
+  return {
+    kind: "split",
+    dir: node.dir,
+    size: node.size,
+    children: node.children.map(serializePaneTree),
+  };
+}
+
+function buildPaneTree(
+  node: SavedPaneNode,
+  nextId: () => number,
+  cwd?: string,
+): PaneNode {
+  if (node.kind === "leaf") return { kind: "leaf", id: nextId(), cwd };
+  return {
+    kind: "split",
+    id: nextId(),
+    dir: node.dir,
+    size: node.size,
+    children: node.children.map((child) => buildPaneTree(child, nextId, cwd)),
+  };
+}
+
+function readSavedWorkspaceLayout(): SavedWorkspaceLayout | null {
+  try {
+    const raw = window.localStorage.getItem(WORKSPACE_LAYOUT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SavedWorkspaceLayout;
+    if (parsed.version !== 1 || !Array.isArray(parsed.tabs)) return null;
+    return parsed;
+  } catch {
+    return null;
   }
 }
 
@@ -595,6 +657,20 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     });
   }, []);
 
+  const setPaneSplitSizes = useCallback((splitId: number, sizes: number[]) => {
+    setTabs((curr) => {
+      let changed = false;
+      const next = curr.map((t) => {
+        if (t.kind !== "terminal") return t;
+        const paneTree = setSplitChildSizes(t.paneTree, splitId, sizes);
+        if (paneTree === t.paneTree) return t;
+        changed = true;
+        return { ...t, paneTree };
+      });
+      return changed ? next : curr;
+    });
+  }, []);
+
   const focusPane = useCallback((tabId: number, leafId: number) => {
     setTabs((curr) =>
       curr.map((t) => {
@@ -741,6 +817,93 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     for (const lid of toDispose) disposeSession(lid);
   }, []);
 
+  const saveWorkspaceLayout = useCallback(() => {
+    try {
+      const terminalTabs = tabsRef.current.filter(
+        (tab): tab is TerminalTab => tab.kind === "terminal",
+      );
+      if (terminalTabs.length === 0) return false;
+      const activeTerminalIndex = terminalTabs.findIndex((tab) => tab.id === activeId);
+      const payload: SavedWorkspaceLayout = {
+        version: 1,
+        tabs: terminalTabs.map((tab) => {
+          const ids = leafIds(tab.paneTree);
+          const activeLeafIndex = Math.max(0, ids.indexOf(tab.activeLeafId));
+          return {
+            title: tab.title,
+            private: tab.private,
+            activeLeafIndex,
+            paneTree: serializePaneTree(tab.paneTree),
+          };
+        }),
+        activeTabIndex: activeTerminalIndex >= 0 ? activeTerminalIndex : 0,
+      };
+      window.localStorage.setItem(
+        WORKSPACE_LAYOUT_STORAGE_KEY,
+        JSON.stringify(payload),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }, [activeId]);
+
+  const clearSavedWorkspaceLayout = useCallback(() => {
+    try {
+      window.localStorage.removeItem(WORKSPACE_LAYOUT_STORAGE_KEY);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  const restoreWorkspaceLayout = useCallback((cwd?: string) => {
+    const saved = readSavedWorkspaceLayout();
+    if (!saved || saved.tabs.length === 0) return false;
+
+    let toDispose: number[] = [];
+    let nextActiveId: number | null = null;
+    let maxId = nextIdRef.current;
+
+    const nextNodeId = () => {
+      const id = maxId++;
+      return id;
+    };
+
+    setTabs((curr) => {
+      toDispose = curr.flatMap((tab) =>
+        tab.kind === "terminal" ? leafIds(tab.paneTree) : [],
+      );
+
+      const nextTabs: TerminalTab[] = saved.tabs.map((tab, index) => {
+        const tabId = nextNodeId();
+        const paneTree = buildPaneTree(tab.paneTree, nextNodeId, cwd);
+        const ids = leafIds(paneTree);
+        const activeLeafId =
+          ids[Math.min(tab.activeLeafIndex, Math.max(0, ids.length - 1))] ?? ids[0];
+        if (index === saved.activeTabIndex) nextActiveId = tabId;
+        return {
+          id: tabId,
+          kind: "terminal",
+          title: tab.private ? "private" : tab.title || "shell",
+          cwd,
+          paneTree,
+          activeLeafId,
+          ...(tab.private ? { private: true } : {}),
+        };
+      });
+
+      if (nextTabs.length === 0) return curr;
+      if (nextActiveId === null) nextActiveId = nextTabs[0].id;
+      return nextTabs;
+    });
+
+    nextIdRef.current = maxId;
+    if (nextActiveId !== null) setActiveId(nextActiveId);
+    for (const lid of toDispose) disposeSession(lid);
+    return true;
+  }, []);
+
   return {
     tabs,
     activeId,
@@ -761,10 +924,14 @@ export function useTabs(initial?: Partial<TerminalTab>) {
     selectByIndex,
     setLeafCwd,
     focusPane,
+    setPaneSplitSizes,
     focusNextPaneInTab,
     splitActivePane,
     closeActivePane,
     closePaneByLeaf,
     resetWorkspace,
+    saveWorkspaceLayout,
+    restoreWorkspaceLayout,
+    clearSavedWorkspaceLayout,
   };
 }

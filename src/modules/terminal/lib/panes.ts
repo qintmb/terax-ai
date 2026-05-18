@@ -3,11 +3,12 @@ export type PaneId = number;
 export type SplitDir = "row" | "col";
 
 export type PaneNode =
-  | { kind: "leaf"; id: PaneId; cwd?: string }
+  | { kind: "leaf"; id: PaneId; cwd?: string; size?: number }
   | {
       kind: "split";
       id: PaneId;
       dir: SplitDir;
+      size?: number;
       children: PaneNode[];
     };
 
@@ -45,6 +46,31 @@ export function setLeafCwd(
     const u = setLeafCwd(c, id, cwd);
     if (u !== c) changed = true;
     return u;
+  });
+  return changed ? { ...n, children: next } : n;
+}
+
+export function setSplitChildSizes(
+  n: PaneNode,
+  splitId: PaneId,
+  sizes: number[],
+): PaneNode {
+  if (isLeaf(n)) return n;
+  if (n.id === splitId) {
+    let changed = false;
+    const next = n.children.map((child, index) => {
+      const size = sizes[index];
+      if (!Number.isFinite(size) || child.size === size) return child;
+      changed = true;
+      return { ...child, size };
+    });
+    return changed ? { ...n, children: next } : n;
+  }
+  let changed = false;
+  const next = n.children.map((child) => {
+    const updated = setSplitChildSizes(child, splitId, sizes);
+    if (updated !== child) changed = true;
+    return updated;
   });
   return changed ? { ...n, children: next } : n;
 }

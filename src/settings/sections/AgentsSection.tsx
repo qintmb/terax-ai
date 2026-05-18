@@ -1,4 +1,5 @@
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -31,6 +32,7 @@ import {
   fetchOpenAICompatibleModels,
   type OpenAICompatibleModelInfo,
 } from "@/modules/ai/lib/openaiCompatibleModels";
+import { listUniversalSkills, type UniversalSkillMeta } from "@/modules/ai/lib/universalSkills";
 import {
   isValidHandle,
   normalizeHandle,
@@ -69,6 +71,8 @@ export function AgentsSection() {
   const customAgents = useAgentsStore((s) => s.customAgents);
   const activeAgentId = useAgentsStore((s) => s.activeId);
   const setActiveAgentId = useAgentsStore((s) => s.setActiveId);
+  const getAgentSkillIds = useAgentsStore((s) => s.getSkillIds);
+  const setAgentSkillIds = useAgentsStore((s) => s.setAgentSkillIds);
   const upsertAgent = useAgentsStore((s) => s.upsert);
   const removeAgent = useAgentsStore((s) => s.remove);
   const hydrateAgents = useAgentsStore((s) => s.hydrate);
@@ -85,6 +89,14 @@ export function AgentsSection() {
 
   const [editingAgent, setEditingAgent] = useState<Agent | null>(null);
   const [editingSnippet, setEditingSnippet] = useState<Snippet | null>(null);
+  const [editingAgentSkills, setEditingAgentSkills] = useState<Agent | null>(null);
+  const [universalSkills, setUniversalSkills] = useState<UniversalSkillMeta[]>([]);
+
+  useEffect(() => {
+    void listUniversalSkills()
+      .then(setUniversalSkills)
+      .catch((error) => console.error("universal skills load failed", error));
+  }, []);
 
   return (
     <div className="flex flex-col gap-7">
@@ -123,7 +135,9 @@ export function AgentsSection() {
               key={a.id}
               agent={a}
               active={a.id === activeAgentId}
+              skillCount={getAgentSkillIds(a.id).length}
               onActivate={() => setActiveAgentId(a.id)}
+              onSkills={() => setEditingAgentSkills(a)}
               onEdit={a.builtIn ? null : () => setEditingAgent(a)}
               onDelete={a.builtIn ? null : () => removeAgent(a.id)}
             />
@@ -237,6 +251,16 @@ export function AgentsSection() {
           setEditingSnippet(null);
         }}
       />
+      <AgentSkillsDialog
+        agent={editingAgentSkills}
+        available={universalSkills}
+        selectedIds={editingAgentSkills ? getAgentSkillIds(editingAgentSkills.id) : []}
+        onClose={() => setEditingAgentSkills(null)}
+        onSave={(skillIds) => {
+          if (editingAgentSkills) setAgentSkillIds(editingAgentSkills.id, skillIds);
+          setEditingAgentSkills(null);
+        }}
+      />
     </div>
   );
 }
@@ -244,13 +268,17 @@ export function AgentsSection() {
 function AgentCard({
   agent,
   active,
+  skillCount,
   onActivate,
+  onSkills,
   onEdit,
   onDelete,
 }: {
   agent: Agent;
   active: boolean;
+  skillCount: number;
   onActivate: () => void;
+  onSkills: () => void;
   onEdit: (() => void) | null;
   onDelete: (() => void) | null;
 }) {
@@ -283,25 +311,36 @@ function AgentCard({
         </div>
       </div>
       <div className="mt-0.5 flex items-center justify-between gap-1">
-        <Button
-          size="sm"
-          variant={active ? "default" : "outline"}
-          onClick={onActivate}
-          className="h-6 gap-1 px-2 text-[10.5px]"
-        >
-          {active ? (
-            <>
-              <HugeiconsIcon
-                icon={CheckmarkCircle02Icon}
-                size={10}
-                strokeWidth={2}
-              />
-              Active
-            </>
-          ) : (
-            "Use agent"
-          )}
-        </Button>
+        <div className="flex items-center gap-1">
+          <Button
+            size="sm"
+            variant={active ? "default" : "outline"}
+            onClick={onActivate}
+            className="h-6 gap-1 px-2 text-[10.5px]"
+          >
+            {active ? (
+              <>
+                <HugeiconsIcon
+                  icon={CheckmarkCircle02Icon}
+                  size={10}
+                  strokeWidth={2}
+                />
+                Active
+              </>
+            ) : (
+              "Use agent"
+            )}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={onSkills}
+            className="h-6 px-2 text-[10.5px]"
+            title="Universal skills"
+          >
+            Skills{skillCount > 0 ? ` (${skillCount})` : ""}
+          </Button>
+        </div>
         <div className="flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
           {onEdit ? (
             <Button
@@ -328,6 +367,88 @@ function AgentCard({
         </div>
       </div>
     </div>
+  );
+}
+
+function AgentSkillsDialog({
+  agent,
+  available,
+  selectedIds,
+  onClose,
+  onSave,
+}: {
+  agent: Agent | null;
+  available: UniversalSkillMeta[];
+  selectedIds: string[];
+  onClose: () => void;
+  onSave: (ids: string[]) => void;
+}) {
+  const [draft, setDraft] = useState<string[]>(selectedIds);
+  useEffect(() => setDraft(selectedIds), [selectedIds, agent?.id]);
+  if (!agent) return null;
+
+  const toggle = (id: string, checked: boolean) => {
+    setDraft((prev) =>
+      checked ? [...new Set([...prev, id])] : prev.filter((x) => x !== id),
+    );
+  };
+
+  return (
+    <Dialog open={!!agent} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-[14px]">
+            Universal skills · {agent.name}
+          </DialogTitle>
+        </DialogHeader>
+        <div className="max-h-[26rem] overflow-y-auto">
+          {available.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-border/60 bg-card/30 px-4 py-6 text-center text-[11px] text-muted-foreground">
+              No universal skills found in <code className="font-mono">~/.agents/skills</code> or <code className="font-mono">~/.codex/skills</code>.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {available.map((skill) => {
+                const checked = draft.includes(skill.id);
+                return (
+                  <label
+                    key={skill.id}
+                    className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/60 bg-card/50 px-3 py-2.5"
+                  >
+                    <Checkbox
+                      checked={checked}
+                      onCheckedChange={(value) => toggle(skill.id, value === true)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[12px] font-medium">{skill.name}</span>
+                        <code className="rounded bg-muted/50 px-1 py-0.5 text-[9px] text-muted-foreground">
+                          {skill.source.includes(".codex") ? ".codex" : ".agents"}
+                        </code>
+                      </div>
+                      <div className="mt-0.5 text-[10.5px] leading-relaxed text-muted-foreground">
+                        {skill.description}
+                      </div>
+                      <div className="mt-1 truncate font-mono text-[10px] text-muted-foreground/70">
+                        {skill.path}
+                      </div>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button size="sm" onClick={() => onSave(draft)}>
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

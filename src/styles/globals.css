@@ -53,7 +53,6 @@
 
 :root {
     --ui-font-family: 'Inter Variable', sans-serif;
-    --ui-scale: 1;
     --background: oklch(1 0 0);
     --foreground: oklch(0.148 0.004 228.8);
     --card: oklch(1 0 0);
@@ -184,11 +183,7 @@ html[data-app-theme="copilot"].dark {
   #root,
   #settings-root {
     font-family: var(--ui-font-family, 'Inter Variable', sans-serif);
-    font-size: 14px;
-    zoom: var(--ui-scale, 1);
-  }
-  [data-no-ui-zoom="true"] {
-    zoom: calc(1 / var(--ui-scale, 1));
+    font-size: var(--app-font-size, 14px);
   }
 }
 

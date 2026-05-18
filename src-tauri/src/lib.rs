@@ -1,6 +1,6 @@
 mod modules;
 
-use modules::{fs, git, net, pty, secrets, shell, workspace};
+use modules::{fs, git, net, pty, secrets, shell, skills, workspace};
 use tauri::{Emitter, Manager, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_window_state::StateFlags;
 
@@ -146,6 +146,8 @@ pub fn run() {
             net::lm_ping,
             net::ai_http_request,
             net::ai_http_stream,
+            skills::universal_skills_list,
+            skills::universal_skills_read,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

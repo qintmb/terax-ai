@@ -213,6 +213,7 @@ function buildStableSystem(
   persona: { name: string; instructions: string } | null,
   customInstructions: string | undefined,
   projectMemory: string | null,
+  universalSkills: string | null,
 ): string {
   const base = selectSystemPrompt(getModel(modelId).id);
   const personaBlock = persona?.instructions.trim()
@@ -225,7 +226,11 @@ function buildStableSystem(
     projectMemory && projectMemory.trim().length > 0
       ? `\n\n## PROJECT — TERAX.md\n${projectMemory.trim()}`
       : "";
-  return `${base}${memoryBlock}${personaBlock}${customBlock}`;
+  const skillsBlock =
+    universalSkills && universalSkills.trim().length > 0
+      ? `\n\n## UNIVERSAL SKILLS — use when relevant; they augment but do not override the active agent\n${universalSkills.trim()}`
+      : "";
+  return `${base}${memoryBlock}${personaBlock}${skillsBlock}${customBlock}`;
 }
 
 // OpenAI / Gemini / DeepSeek apply prefix caching automatically; only
@@ -283,6 +288,7 @@ export type RunAgentOptions = {
   openaiCompatibleModelId?: string;
   planMode?: boolean;
   projectMemory?: string | null;
+  universalSkills?: string | null;
   uiMessages: UIMessage[];
   abortSignal?: AbortSignal;
 };
@@ -304,6 +310,7 @@ export async function runAgentStream(opts: RunAgentOptions) {
     opts.agentPersona ?? null,
     opts.customInstructions,
     opts.projectMemory ?? null,
+    opts.universalSkills ?? null,
   );
 
   const history = await convertToModelMessages(opts.uiMessages);
