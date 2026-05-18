@@ -10,6 +10,7 @@ type Props = {
   activeId: number;
   /** Register/unregister handle by leaf id (not tab id). */
   registerHandle: (leafId: number, handle: TerminalPaneHandle | null) => void;
+  onDropPaths?: (leafId: number, paths: string[]) => void;
   onSearchReady: (leafId: number, addon: SearchAddon) => void;
   onCwd: (leafId: number, cwd: string) => void;
   onExit: (leafId: number, code: number) => void;
@@ -28,6 +29,7 @@ export function TerminalStack({
   tabs,
   activeId,
   registerHandle,
+  onDropPaths,
   onSearchReady,
   onCwd,
   onExit,
@@ -98,6 +100,7 @@ export function TerminalStack({
               tabVisible={tabVisible}
               activeLeafId={t.activeLeafId}
               onFocusLeaf={(leafId) => onFocusLeaf(t.id, leafId)}
+              onDropPaths={onDropPaths}
               onSplitResize={onSplitResize}
               getBundle={getBundle}
             />

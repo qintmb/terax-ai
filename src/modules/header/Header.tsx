@@ -156,15 +156,17 @@ export function Header({
             <Button
               variant="ghost"
               size="icon-sm"
-              className="shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground disabled:opacity-50"
-              title="Split terminal"
-              disabled={!canSplit}
+              className="shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
+              title="Workspace actions"
             >
               <HugeiconsIcon icon={GridViewIcon} size={16} strokeWidth={1.75} />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="min-w-44">
-            <DropdownMenuItem onSelect={() => onSplit("row")}>
+            <DropdownMenuItem
+              disabled={!canSplit}
+              onSelect={() => onSplit("row")}
+            >
               <HugeiconsIcon
                 icon={LayoutTwoColumnIcon}
                 size={14}
@@ -177,7 +179,10 @@ export function Header({
                 </span>
               )}
             </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => onSplit("col")}>
+            <DropdownMenuItem
+              disabled={!canSplit}
+              onSelect={() => onSplit("col")}
+            >
               <HugeiconsIcon
                 icon={LayoutTwoRowIcon}
                 size={14}

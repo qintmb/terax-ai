@@ -1014,6 +1014,16 @@ export default function App() {
     [activeId, openFileTab],
   );
 
+  const insertDroppedPathsIntoTerminalLeaf = useCallback((leafId: number, paths: string[]) => {
+    const clean = paths.filter(Boolean);
+    if (clean.length === 0) return false;
+    const term = terminalRefs.current.get(leafId);
+    if (!term) return false;
+    term.write(`${clean.map(shellQuote).join(" ")} `);
+    term.focus();
+    return true;
+  }, []);
+
   const handleFocusLeaf = useCallback(
     (tabId: number, leafId: number) => focusPane(tabId, leafId),
     [focusPane],
@@ -1131,7 +1141,26 @@ export default function App() {
             ? document.elementFromPoint(point.x, point.y)
             : document.querySelector("[data-ai-drop-target='true']:hover");
         const chatTarget = el?.closest("[data-ai-drop-target='true']");
-        void insertDroppedPaths(event.payload.paths, chatTarget ? "chat" : "workspace");
+        if (chatTarget) {
+          void insertDroppedPaths(event.payload.paths, "chat");
+          return;
+        }
+        const terminalLeaf =
+          el?.closest("[data-terminal-drop-leaf]") ??
+          (point && Number.isFinite(point.x) && Number.isFinite(point.y)
+            ? document
+                .elementsFromPoint(point.x, point.y)
+                .find((node) => node instanceof HTMLElement && node.hasAttribute("data-terminal-drop-leaf"))
+            : null);
+        const leafId = Number(
+          terminalLeaf instanceof HTMLElement
+            ? terminalLeaf.getAttribute("data-terminal-drop-leaf")
+            : "",
+        );
+        if (Number.isFinite(leafId) && insertDroppedPathsIntoTerminalLeaf(leafId, event.payload.paths)) {
+          return;
+        }
+        void insertDroppedPaths(event.payload.paths, "workspace");
       })
       .then((fn) => {
         if (disposed) fn();
@@ -1173,6 +1202,7 @@ export default function App() {
           tabs={tabs}
           activeId={activeId}
           registerHandle={registerTerminalHandle}
+          onDropPaths={insertDroppedPathsIntoTerminalLeaf}
           onSearchReady={handleSearchReady}
           onCwd={handleTerminalCwd}
           onExit={handleLeafExit}

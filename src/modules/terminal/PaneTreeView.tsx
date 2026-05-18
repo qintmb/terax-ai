@@ -1,4 +1,6 @@
+import { cn } from "@/lib/utils";
 import { Fragment } from "react";
+import { useRef, useState } from "react";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -20,6 +22,7 @@ type Props = {
   tabVisible: boolean;
   activeLeafId: number;
   onFocusLeaf: (leafId: number) => void;
+  onDropPaths?: (leafId: number, paths: string[]) => void;
   onSplitResize: (splitId: number, sizes: number[]) => void;
   getBundle: (leafId: number) => LeafBundle;
 };
@@ -29,9 +32,13 @@ export function PaneTreeView({
   tabVisible,
   activeLeafId,
   onFocusLeaf,
+  onDropPaths,
   onSplitResize,
   getBundle,
 }: Props) {
+  const [dropActive, setDropActive] = useState(false);
+  const dragDepthRef = useRef(0);
+
   if (node.kind === "leaf") {
     const focused = node.id === activeLeafId;
     const b = getBundle(node.id);
@@ -46,7 +53,38 @@ export function PaneTreeView({
           if (!focused) onFocusLeaf(node.id);
         }}
         data-pane-leaf={node.id}
-        className="relative h-full w-full"
+        data-terminal-drop-leaf={node.id}
+        data-drop-active={dropActive ? "true" : "false"}
+        onDragEnterCapture={(event) => {
+          if (!event.dataTransfer.types.includes("application/x-terax-path")) return;
+          dragDepthRef.current += 1;
+          setDropActive(true);
+        }}
+        onDragOverCapture={(event) => {
+          if (!event.dataTransfer.types.includes("application/x-terax-path")) return;
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "copy";
+        }}
+        onDragLeaveCapture={(event) => {
+          if (!event.dataTransfer.types.includes("application/x-terax-path")) return;
+          dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
+          if (dragDepthRef.current === 0) setDropActive(false);
+        }}
+        onDropCapture={(event) => {
+          const path = event.dataTransfer.getData("application/x-terax-path");
+          if (!path) return;
+          event.preventDefault();
+          event.stopPropagation();
+          dragDepthRef.current = 0;
+          setDropActive(false);
+          onFocusLeaf(node.id);
+          onDropPaths?.(node.id, [path]);
+        }}
+        className={cn(
+          "relative h-full w-full rounded-lg transition-shadow",
+          dropActive &&
+            "ring-2 ring-emerald-400/80 ring-inset shadow-[inset_0_0_0_1px_rgba(74,222,128,0.35)]",
+        )}
       >
         <TerminalPane
           leafId={node.id}
@@ -89,6 +127,7 @@ export function PaneTreeView({
               tabVisible={tabVisible}
               activeLeafId={activeLeafId}
               onFocusLeaf={onFocusLeaf}
+              onDropPaths={onDropPaths}
               onSplitResize={onSplitResize}
               getBundle={getBundle}
             />
