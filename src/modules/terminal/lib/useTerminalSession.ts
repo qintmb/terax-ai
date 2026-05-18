@@ -321,11 +321,12 @@ export function useTerminalSession({
   }, [leafId, container, initialCwd]);
 
   const fontSize = usePreferencesStore((p) => p.terminalFontSize);
+  const fontFamily = usePreferencesStore((p) => p.terminalFontFamily);
   const zoomLevel = usePreferencesStore((p) => p.zoomLevel);
   useEffect(() => {
     applyFontFamily();
     applyFontSize(Math.max(4, Math.round(fontSize * zoomLevel)));
-  }, [fontSize, zoomLevel]);
+  }, [fontSize, fontFamily, zoomLevel]);
 
   const scrollback = usePreferencesStore((p) => p.terminalScrollback);
   useEffect(() => {

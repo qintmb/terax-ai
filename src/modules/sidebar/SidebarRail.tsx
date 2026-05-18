@@ -5,7 +5,6 @@ import {
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import {
-  CommandIcon,
   FolderGitTwoIcon,
   FolderTreeIcon,
   GitForkIcon,
@@ -41,7 +40,6 @@ type Props = {
   activeView: SidebarViewId;
   onSelectView: (view: SidebarViewId) => void;
   changedCount: number;
-  onOpenCommandPalette: () => void;
   onOpenGitGraph?: () => void;
 };
 
@@ -49,7 +47,6 @@ export function SidebarRail({
   activeView,
   onSelectView,
   changedCount,
-  onOpenCommandPalette,
   onOpenGitGraph,
 }: Props) {
   const slots: RailSlot[] = [
@@ -79,13 +76,6 @@ export function SidebarRail({
       id: "extensions",
       label: "Extensions",
       icon: PuzzleIcon,
-    },
-    {
-      kind: "action",
-      id: "command-palette",
-      label: "Command Palette",
-      icon: CommandIcon,
-      onTrigger: onOpenCommandPalette,
     },
   ];
 

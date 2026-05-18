@@ -941,9 +941,18 @@ export default function App() {
   );
 
   const insertDroppedPaths = useCallback(
-    async (paths: string[]) => {
+    async (paths: string[], target: "chat" | "workspace" = "workspace") => {
       const clean = paths.filter(Boolean);
       if (clean.length === 0) return false;
+      if (target === "chat") {
+        useChatStore.getState().openPanel();
+        for (const path of clean) {
+          window.dispatchEvent(
+            new CustomEvent<string>("terax:ai-attach-file", { detail: path }),
+          );
+        }
+        return true;
+      }
       const quoted = clean.map(shellQuote).join(" ");
       const active = tabsRef.current.find((t) => t.id === activeId);
       if (active?.kind === "terminal") {
@@ -1072,7 +1081,16 @@ export default function App() {
     void getCurrentWindow()
       .onDragDropEvent((event) => {
         if (event.payload.type !== "drop") return;
-        void insertDroppedPaths(event.payload.paths);
+        const payload = event.payload as typeof event.payload & {
+          position?: { x: number; y: number };
+        };
+        const point = payload.position;
+        const el =
+          point && Number.isFinite(point.x) && Number.isFinite(point.y)
+            ? document.elementFromPoint(point.x, point.y)
+            : document.querySelector("[data-ai-drop-target='true']:hover");
+        const chatTarget = el?.closest("[data-ai-drop-target='true']");
+        void insertDroppedPaths(event.payload.paths, chatTarget ? "chat" : "workspace");
       })
       .then((fn) => {
         if (disposed) fn();
@@ -1090,6 +1108,7 @@ export default function App() {
   const workspaceSurface = (
     <div className="relative h-full min-h-0">
       <div
+        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0 px-3 pt-2 pb-2",
           !isTerminalTab && "invisible pointer-events-none",
@@ -1107,6 +1126,7 @@ export default function App() {
         />
       </div>
       <div
+        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0 px-3 pt-2 pb-2",
           !isEditorTab && "invisible pointer-events-none",
@@ -1122,6 +1142,7 @@ export default function App() {
         />
       </div>
       <div
+        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0 px-3 pt-2 pb-2",
           !isPreviewTab && "invisible pointer-events-none",
@@ -1136,6 +1157,7 @@ export default function App() {
         />
       </div>
       <div
+        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0 px-3 pt-2 pb-2",
           !isAiDiffTab && "invisible pointer-events-none",
@@ -1150,6 +1172,7 @@ export default function App() {
         />
       </div>
       <div
+        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0 px-3 pt-2 pb-2",
           !isGitDiffTab && "invisible pointer-events-none",
@@ -1159,6 +1182,7 @@ export default function App() {
         <GitDiffStack tabs={tabs} activeId={activeId} />
       </div>
       <div
+        data-no-ui-zoom="true"
         className={cn(
           "absolute inset-0",
           !isGitHistoryTab && "invisible pointer-events-none",
@@ -1243,7 +1267,6 @@ export default function App() {
                     activeView={sidebarView}
                     onSelectView={persistSidebarView}
                     changedCount={sourceControl.changedCount}
-                    onOpenCommandPalette={() => setShortcutsOpen(true)}
                     onOpenGitGraph={openGitGraphFromContext}
                   />
                 </div>

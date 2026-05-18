@@ -23,6 +23,7 @@ export const EDITOR_THEMES = [
   "tokyo-night",
   "xcode-dark",
   "xcode-light",
+  "custom",
 ] as const;
 
 export type EditorThemeId = (typeof EDITOR_THEMES)[number];
@@ -37,13 +38,16 @@ export const EDITOR_THEME_LABELS: Record<EditorThemeId, string> = {
   "tokyo-night": "Tokyo Night",
   "xcode-dark": "Xcode Dark",
   "xcode-light": "Xcode Light",
+  custom: "Custom",
 };
 
 export type Preferences = {
   theme: ThemePref;
   appFontSize: number;
+  appFontFamily: string;
   defaultModelId: ModelId;
   editorTheme: EditorThemeId;
+  editorThemeCustomCss: string;
   customInstructions: string;
   autostart: boolean;
   restoreWindowState: boolean;
@@ -60,6 +64,7 @@ export type Preferences = {
   showHidden: boolean;
   terminalWebglEnabled: boolean;
   terminalFontSize: number;
+  terminalFontFamily: string;
   terminalScrollback: number;
   lastWslDistro: string | null;
   zoomLevel: number;
@@ -69,8 +74,10 @@ export type Preferences = {
 const STORE_PATH = "terax-settings.json";
 const KEY_THEME = "theme";
 const KEY_APP_FONT_SIZE = "appFontSize";
+const KEY_APP_FONT_FAMILY = "appFontFamily";
 const KEY_DEFAULT_MODEL = "defaultModelId";
 const KEY_EDITOR_THEME = "editorTheme";
+const KEY_EDITOR_THEME_CUSTOM_CSS = "editorThemeCustomCss";
 const KEY_CUSTOM_INSTRUCTIONS = "customInstructions";
 const KEY_AUTOSTART = "autostart";
 const KEY_RESTORE_WINDOW = "restoreWindowState";
@@ -88,6 +95,7 @@ const KEY_SHOW_HIDDEN = "showHidden";
 const LEGACY_KEY_SHOW_HIDDEN_DIRS = "showHiddenDirectories";
 const KEY_TERMINAL_WEBGL_ENABLED = "terminalWebglEnabled";
 const KEY_TERMINAL_FONT_SIZE = "terminalFontSize";
+const KEY_TERMINAL_FONT_FAMILY = "terminalFontFamily";
 const KEY_TERMINAL_SCROLLBACK = "terminalScrollback";
 const KEY_LAST_WSL_DISTRO = "lastWslDistro";
 const KEY_ZOOM_LEVEL = "zoomLevel";
@@ -99,12 +107,29 @@ export const TERMINAL_FONT_SIZE_MAX = 32;
 export const APP_FONT_SIZE_DEFAULT = 14;
 export const APP_FONT_SIZE_MIN = 8;
 export const APP_FONT_SIZE_MAX = 22;
+export const APP_FONT_FAMILY_DEFAULT = "Inter Variable";
+export const TERMINAL_FONT_FAMILY_DEFAULT = "Menlo";
 export const APP_FONT_SIZES = [
   8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22,
 ] as const;
 
 export const TERMINAL_FONT_SIZES = [
   8, 9, 10, 12, 13, 14, 15, 16, 18, 20, 22, 24,
+] as const;
+export const UI_FONT_FAMILIES = [
+  "Inter Variable",
+  "SF Pro Text",
+  "Helvetica Neue",
+  "Menlo",
+  "MesloLGS NF",
+  "JetBrains Mono",
+] as const;
+export const TERMINAL_FONT_FAMILIES = [
+  "Menlo",
+  "MesloLGS NF",
+  "JetBrains Mono",
+  "SF Mono",
+  "Monaco",
 ] as const;
 
 export const TERMINAL_SCROLLBACK_DEFAULT = 2000;
@@ -117,8 +142,10 @@ export const TERMINAL_SCROLLBACK_PRESETS = [
 export const DEFAULT_PREFERENCES: Preferences = {
   theme: "system",
   appFontSize: APP_FONT_SIZE_DEFAULT,
+  appFontFamily: APP_FONT_FAMILY_DEFAULT,
   defaultModelId: DEFAULT_MODEL_ID,
   editorTheme: "atomone",
+  editorThemeCustomCss: "",
   customInstructions: "",
   autostart: false,
   restoreWindowState: true,
@@ -135,6 +162,7 @@ export const DEFAULT_PREFERENCES: Preferences = {
   showHidden: false,
   terminalWebglEnabled: !IS_INTEL_MAC,
   terminalFontSize: TERMINAL_FONT_SIZE_DEFAULT,
+  terminalFontFamily: TERMINAL_FONT_FAMILY_DEFAULT,
   terminalScrollback: TERMINAL_SCROLLBACK_DEFAULT,
   lastWslDistro: null,
   zoomLevel: 1.0,
@@ -165,10 +193,15 @@ export async function loadPreferences(): Promise<Preferences> {
     theme: get<ThemePref>(KEY_THEME) ?? DEFAULT_PREFERENCES.theme,
     appFontSize:
       get<number>(KEY_APP_FONT_SIZE) ?? DEFAULT_PREFERENCES.appFontSize,
+    appFontFamily:
+      get<string>(KEY_APP_FONT_FAMILY) ?? DEFAULT_PREFERENCES.appFontFamily,
     defaultModelId:
       get<ModelId>(KEY_DEFAULT_MODEL) ?? DEFAULT_PREFERENCES.defaultModelId,
     editorTheme:
       get<EditorThemeId>(KEY_EDITOR_THEME) ?? DEFAULT_PREFERENCES.editorTheme,
+    editorThemeCustomCss:
+      get<string>(KEY_EDITOR_THEME_CUSTOM_CSS) ??
+      DEFAULT_PREFERENCES.editorThemeCustomCss,
     customInstructions:
       get<string>(KEY_CUSTOM_INSTRUCTIONS) ??
       DEFAULT_PREFERENCES.customInstructions,
@@ -211,6 +244,9 @@ export async function loadPreferences(): Promise<Preferences> {
     terminalFontSize:
       get<number>(KEY_TERMINAL_FONT_SIZE) ??
       DEFAULT_PREFERENCES.terminalFontSize,
+    terminalFontFamily:
+      get<string>(KEY_TERMINAL_FONT_FAMILY) ??
+      DEFAULT_PREFERENCES.terminalFontFamily,
     terminalScrollback: clampScrollback(
       get<number>(KEY_TERMINAL_SCROLLBACK) ??
         DEFAULT_PREFERENCES.terminalScrollback,
@@ -236,12 +272,23 @@ export async function setAppFontSize(value: number): Promise<void> {
   await writePref(KEY_APP_FONT_SIZE, clamped);
 }
 
+export async function setAppFontFamily(value: string): Promise<void> {
+  await writePref(
+    KEY_APP_FONT_FAMILY,
+    value.trim() || APP_FONT_FAMILY_DEFAULT,
+  );
+}
+
 export async function setDefaultModel(value: ModelId): Promise<void> {
   await writePref(KEY_DEFAULT_MODEL, value);
 }
 
 export async function setEditorTheme(value: EditorThemeId): Promise<void> {
   await writePref(KEY_EDITOR_THEME, value);
+}
+
+export async function setEditorThemeCustomCss(value: string): Promise<void> {
+  await writePref(KEY_EDITOR_THEME_CUSTOM_CSS, value);
 }
 
 export async function setCustomInstructions(value: string): Promise<void> {
@@ -316,6 +363,13 @@ export async function setTerminalFontSize(value: number): Promise<void> {
   await writePref(KEY_TERMINAL_FONT_SIZE, clamped);
 }
 
+export async function setTerminalFontFamily(value: string): Promise<void> {
+  await writePref(
+    KEY_TERMINAL_FONT_FAMILY,
+    value.trim() || TERMINAL_FONT_FAMILY_DEFAULT,
+  );
+}
+
 function clampScrollback(value: number): number {
   if (!Number.isFinite(value)) return TERMINAL_SCROLLBACK_DEFAULT;
   return Math.min(
@@ -357,8 +411,10 @@ export async function onPreferencesChange(
   const map: Record<string, PrefKey> = {
     [KEY_THEME]: "theme",
     [KEY_APP_FONT_SIZE]: "appFontSize",
+    [KEY_APP_FONT_FAMILY]: "appFontFamily",
     [KEY_DEFAULT_MODEL]: "defaultModelId",
     [KEY_EDITOR_THEME]: "editorTheme",
+    [KEY_EDITOR_THEME_CUSTOM_CSS]: "editorThemeCustomCss",
     [KEY_CUSTOM_INSTRUCTIONS]: "customInstructions",
     [KEY_AUTOSTART]: "autostart",
     [KEY_RESTORE_WINDOW]: "restoreWindowState",
@@ -375,6 +431,7 @@ export async function onPreferencesChange(
     [KEY_SHOW_HIDDEN]: "showHidden",
     [KEY_TERMINAL_WEBGL_ENABLED]: "terminalWebglEnabled",
     [KEY_TERMINAL_FONT_SIZE]: "terminalFontSize",
+    [KEY_TERMINAL_FONT_FAMILY]: "terminalFontFamily",
     [KEY_TERMINAL_SCROLLBACK]: "terminalScrollback",
     [KEY_LAST_WSL_DISTRO]: "lastWslDistro",
     [KEY_ZOOM_LEVEL]: "zoomLevel",

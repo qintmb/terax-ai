@@ -214,7 +214,10 @@ export function AiInputBar() {
       : null;
 
   return (
-    <div className="shrink-0 border-t border-border/60 bg-card/40 px-3 py-2">
+    <div
+      data-ai-drop-target="true"
+      className="shrink-0 border-t border-border/60 bg-card/40 px-3 py-2"
+    >
       <div
         className={cn(
           "flex flex-col gap-1.5 rounded-lg px-1 py-1",

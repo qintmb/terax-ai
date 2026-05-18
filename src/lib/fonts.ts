@@ -76,5 +76,10 @@ export function detectTerminalFontFamily(): string {
 }
 
 export function getTerminalFontFamily(): string {
+  const configured = usePreferencesStore.getState().terminalFontFamily?.trim();
+  if (configured) {
+    return `"${configured}", "MesloLGS NF", "MesloLGM Nerd Font", "JetBrains Mono", SFMono-Regular, Menlo, monospace`;
+  }
   return MENLO_FIRST_CHAIN;
 }
+import { usePreferencesStore } from "@/modules/settings/preferences";

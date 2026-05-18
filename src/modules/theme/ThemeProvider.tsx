@@ -33,6 +33,7 @@ const ThemeProviderContext = createContext<ThemeProviderState | null>(null);
 // preference (in tauri-plugin-store) overwrites this on mount; we keep a
 // localStorage shadow of the *last applied* theme just for first-paint fidelity.
 const FAST_PATH_KEY = "terax-ui-theme-shadow";
+const CUSTOM_THEME_ATTR = "data-terax-custom-theme-key";
 
 function readFastTheme(fallback: Theme): Theme {
   if (typeof window === "undefined") return fallback;
@@ -46,6 +47,26 @@ function writeFastTheme(t: Theme): void {
   } catch {
     // ignore
   }
+}
+
+function applyCustomThemeCss(root: HTMLElement, cssText: string): void {
+  const prev = root.getAttribute(CUSTOM_THEME_ATTR);
+  if (prev) {
+    for (const key of prev.split("|")) {
+      if (key) root.style.removeProperty(key);
+    }
+  }
+  const applied: string[] = [];
+  for (const raw of cssText.split(";")) {
+    const idx = raw.indexOf(":");
+    if (idx === -1) continue;
+    const key = raw.slice(0, idx).trim();
+    const value = raw.slice(idx + 1).trim();
+    if (!key.startsWith("--") || !value) continue;
+    root.style.setProperty(key, value);
+    applied.push(key);
+  }
+  root.setAttribute(CUSTOM_THEME_ATTR, applied.join("|"));
 }
 
 export function ThemeProvider({
@@ -62,6 +83,8 @@ export function ThemeProvider({
   );
   const [editorTheme, setEditorTheme] = useState<EditorThemeId>("atomone");
   const [appFontSize, setAppFontSize] = useState(14);
+  const [appFontFamily, setAppFontFamily] = useState("Inter Variable");
+  const [editorThemeCustomCss, setEditorThemeCustomCss] = useState("");
 
   // Hydrate from the persistent store (cross-window source of truth).
   useEffect(() => {
@@ -71,6 +94,8 @@ export function ThemeProvider({
       setThemeState(p.theme);
       setEditorTheme(p.editorTheme);
       setAppFontSize(p.appFontSize);
+      setAppFontFamily(p.appFontFamily);
+      setEditorThemeCustomCss(p.editorThemeCustomCss);
       writeFastTheme(p.theme);
     });
     const unlistenP = onPreferencesChange((key, value) => {
@@ -79,8 +104,12 @@ export function ThemeProvider({
         writeFastTheme(value);
       } else if (key === "editorTheme" && typeof value === "string") {
         setEditorTheme(value as EditorThemeId);
+      } else if (key === "editorThemeCustomCss" && typeof value === "string") {
+        setEditorThemeCustomCss(value);
       } else if (key === "appFontSize" && typeof value === "number") {
         setAppFontSize(value);
+      } else if (key === "appFontFamily" && typeof value === "string") {
+        setAppFontFamily(value);
       }
     });
     return () => {
@@ -105,7 +134,13 @@ export function ThemeProvider({
     root.classList.add(resolvedTheme);
     root.dataset.appTheme = editorTheme;
     root.style.setProperty("--app-font-size", `${appFontSize}px`);
-  }, [resolvedTheme, editorTheme, appFontSize]);
+    root.style.setProperty("--ui-font-family", `"${appFontFamily}", sans-serif`);
+    root.style.setProperty(
+      "--ui-scale",
+      String(Math.max(0.75, appFontSize / 14)),
+    );
+    applyCustomThemeCss(root, editorThemeCustomCss);
+  }, [resolvedTheme, editorTheme, appFontSize, appFontFamily, editorThemeCustomCss]);
 
   const setTheme = useCallback((next: Theme) => {
     setThemeState(next);

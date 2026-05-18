@@ -1,4 +1,4 @@
-import { detectTerminalFontFamily, getTerminalFontFamily } from "@/lib/fonts";
+import { getTerminalFontFamily } from "@/lib/fonts";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { buildTerminalTheme } from "@/styles/terminalTheme";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -77,7 +77,7 @@ function getRecycler(): HTMLDivElement {
 function termOptions() {
   const prefs = usePreferencesStore.getState();
   return {
-    fontFamily: detectTerminalFontFamily(),
+    fontFamily: getTerminalFontFamily(),
     fontSize: Math.max(4, Math.round(prefs.terminalFontSize * prefs.zoomLevel)),
     theme: buildTerminalTheme(),
     cursorBlink: false,

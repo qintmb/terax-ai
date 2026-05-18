@@ -1,4 +1,6 @@
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,15 +19,22 @@ import { usePreferencesStore } from "@/modules/settings/preferences";
 import type { ThemePref } from "@/modules/settings/store";
 import {
   APP_FONT_SIZES,
+  APP_FONT_FAMILY_DEFAULT,
+  TERMINAL_FONT_FAMILY_DEFAULT,
+  TERMINAL_FONT_FAMILIES,
   EDITOR_THEME_LABELS,
   EDITOR_THEMES,
+  UI_FONT_FAMILIES,
   TERMINAL_FONT_SIZES,
   TERMINAL_SCROLLBACK_PRESETS,
   setAutostart,
+  setAppFontFamily,
   setAppFontSize,
   setEditorTheme,
+  setEditorThemeCustomCss,
   setRestoreWindowState,
   setShowHidden,
+  setTerminalFontFamily,
   setTerminalFontSize,
   setTerminalScrollback,
   setTerminalWebglEnabled,
@@ -59,6 +68,7 @@ export function GeneralSection() {
   const { theme, setTheme } = useTheme();
   const editorTheme = usePreferencesStore((s) => s.editorTheme);
   const appFontSize = usePreferencesStore((s) => s.appFontSize);
+  const appFontFamily = usePreferencesStore((s) => s.appFontFamily);
   const autostart = usePreferencesStore((s) => s.autostart);
   const restoreWindowState = usePreferencesStore((s) => s.restoreWindowState);
   const vimMode = usePreferencesStore((s) => s.vimMode);
@@ -67,7 +77,11 @@ export function GeneralSection() {
     (s) => s.terminalWebglEnabled,
   );
   const terminalFontSize = usePreferencesStore((s) => s.terminalFontSize);
+  const terminalFontFamily = usePreferencesStore((s) => s.terminalFontFamily);
   const terminalScrollback = usePreferencesStore((s) => s.terminalScrollback);
+  const editorThemeCustomCss = usePreferencesStore(
+    (s) => s.editorThemeCustomCss,
+  );
 
   // Reconcile autostart pref with the actual OS state on mount — the user may
   // have toggled it from System Settings.
@@ -98,6 +112,7 @@ export function GeneralSection() {
 
   const onPickEditor = (id: EditorThemeId) => void setEditorTheme(id);
   const onPickAppFontSize = (size: number) => void setAppFontSize(size);
+  const onPickAppFontFamily = (font: string) => void setAppFontFamily(font);
 
   const onToggleTerminalWebgl = (next: boolean) => {
     void setTerminalWebglEnabled(next).catch((e) =>
@@ -106,6 +121,8 @@ export function GeneralSection() {
   };
 
   const onPickTerminalFontSize = (size: number) => void setTerminalFontSize(size);
+  const onPickTerminalFontFamily = (font: string) =>
+    void setTerminalFontFamily(font);
 
   const onPickScrollback = (lines: number) => void setTerminalScrollback(lines);
 
@@ -174,6 +191,17 @@ export function GeneralSection() {
           Applies to editor panes and gives app chrome matching dark accents for some themes.
         </p>
         <SettingRow
+          title="Custom theme CSS"
+          description="Optional CSS overrides for editor and app tokens. Example: --background: oklch(...); --accent: oklch(...);"
+        >
+          <Textarea
+            value={editorThemeCustomCss}
+            onChange={(e) => void setEditorThemeCustomCss(e.target.value)}
+            placeholder="--background: oklch(0.16 0.03 264);&#10;--card: oklch(0.2 0.04 264);&#10;--accent: oklch(0.32 0.08 271);"
+            className="min-h-28 w-[340px] text-[12px] leading-5 font-mono"
+          />
+        </SettingRow>
+        <SettingRow
           title="Vim mode"
           description="Enable Vim keybindings in the code editor."
         >
@@ -186,6 +214,52 @@ export function GeneralSection() {
 
       <div className="flex flex-col gap-2">
         <Label>Application</Label>
+        <SettingRow
+          title="Font family"
+          description="UI font for settings, panels, menus, and chat."
+        >
+          <div className="flex w-[240px] flex-col gap-1.5">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-8 justify-between gap-2 rounded-none px-2.5 text-[12px]"
+                >
+                  <span>{appFontFamily || APP_FONT_FAMILY_DEFAULT}</span>
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    size={12}
+                    strokeWidth={2}
+                    className="opacity-70"
+                  />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="min-w-[180px] rounded-none border border-border bg-popover p-0 shadow-none ring-0"
+              >
+                {UI_FONT_FAMILIES.map((font) => (
+                  <DropdownMenuItem
+                    key={font}
+                    onSelect={() => onPickAppFontFamily(font)}
+                    className={cn(
+                      "rounded-none px-3 py-1.5 text-[12px]",
+                      font === appFontFamily && "bg-accent/50",
+                    )}
+                  >
+                    {font}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Input
+              value={appFontFamily}
+              onChange={(e) => void setAppFontFamily(e.target.value)}
+              placeholder="Custom UI font"
+              className="h-8 rounded-none text-[12px]"
+            />
+          </div>
+        </SettingRow>
         <SettingRow
           title="Font size"
           description="UI text size for settings, panels, menus, and chat."
@@ -268,6 +342,52 @@ export function GeneralSection() {
             checked={terminalWebglEnabled}
             onCheckedChange={onToggleTerminalWebgl}
           />
+        </SettingRow>
+        <SettingRow
+          title="Font family"
+          description="Terminal font family."
+        >
+          <div className="flex w-[240px] flex-col gap-1.5">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="h-8 justify-between gap-2 rounded-none px-2.5 text-[12px]"
+                >
+                  <span>{terminalFontFamily || TERMINAL_FONT_FAMILY_DEFAULT}</span>
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    size={12}
+                    strokeWidth={2}
+                    className="opacity-70"
+                  />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent
+                align="end"
+                className="min-w-[180px] rounded-none border border-border bg-popover p-0 shadow-none ring-0"
+              >
+                {TERMINAL_FONT_FAMILIES.map((font) => (
+                  <DropdownMenuItem
+                    key={font}
+                    onSelect={() => onPickTerminalFontFamily(font)}
+                    className={cn(
+                      "rounded-none px-3 py-1.5 text-[12px]",
+                      font === terminalFontFamily && "bg-accent/50",
+                    )}
+                  >
+                    {font}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Input
+              value={terminalFontFamily}
+              onChange={(e) => void setTerminalFontFamily(e.target.value)}
+              placeholder="Custom terminal font"
+              className="h-8 rounded-none text-[12px]"
+            />
+          </div>
         </SettingRow>
         <SettingRow
           title="Font size"

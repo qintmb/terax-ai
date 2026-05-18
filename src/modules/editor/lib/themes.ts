@@ -12,6 +12,7 @@ export const EDITOR_THEME_EXT: Record<EditorThemeId, Extension> = {
   atomone,
   aura,
   copilot,
+  custom: tokyoNight,
   "github-dark": githubDark,
   "github-light": githubLight,
   nord,
