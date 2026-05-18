@@ -213,7 +213,7 @@ export function GeneralSection() {
               </TooltipProvider>
             </span>
           }
-          description="Hardware-accelerated rendering. Turn off if text shows corruption or blank tiles."
+          description="Hardware-accelerated rendering. Intel Macs start with this off because WebKit WebGL is less reliable there. Turn on if your terminal stays stable."
         >
           <Switch
             checked={terminalWebglEnabled}
