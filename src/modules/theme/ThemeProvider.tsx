@@ -134,6 +134,14 @@ export function ThemeProvider({
     root.classList.add(resolvedTheme);
     root.dataset.appTheme = editorTheme;
     root.style.setProperty("--app-font-size", `${appFontSize}px`);
+    root.style.setProperty("--app-font-scale", String(appFontSize / 14));
+    for (const size of [9, 9.5, 10, 10.5, 11, 11.5, 12, 12.5, 13, 14, 18]) {
+      const key = String(size).replace(".", "_");
+      root.style.setProperty(
+        `--app-font-${key}`,
+        `${(size * appFontSize) / 14}px`,
+      );
+    }
     root.style.setProperty("--ui-font-family", `"${appFontFamily}", sans-serif`);
     applyCustomThemeCss(root, editorThemeCustomCss);
   }, [resolvedTheme, editorTheme, appFontSize, appFontFamily, editorThemeCustomCss]);

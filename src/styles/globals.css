@@ -188,6 +188,18 @@ html[data-app-theme="copilot"].dark {
 }
 
 :root {
+  --app-font-scale: 1;
+  --app-font-9: 9px;
+  --app-font-9_5: 9.5px;
+  --app-font-10: 10px;
+  --app-font-10_5: 10.5px;
+  --app-font-11: 11px;
+  --app-font-11_5: 11.5px;
+  --app-font-12: 12px;
+  --app-font-12_5: 12.5px;
+  --app-font-13: 13px;
+  --app-font-14: 14px;
+  --app-font-18: 18px;
   --app-zoom: 1;
 }
 .zoom-content {
@@ -195,6 +207,32 @@ html[data-app-theme="copilot"].dark {
 }
 .zoom-exempt {
   zoom: calc(1 / var(--app-zoom));
+}
+
+@layer utilities {
+  #root .text-\[9px\],
+  #settings-root .text-\[9px\] { font-size: var(--app-font-9); }
+  #root .text-\[9\.5px\],
+  #settings-root .text-\[9\.5px\] { font-size: var(--app-font-9_5); }
+  #root .text-\[10px\],
+  #settings-root .text-\[10px\] { font-size: var(--app-font-10); }
+  #root .text-\[10\.5px\],
+  #settings-root .text-\[10\.5px\] { font-size: var(--app-font-10_5); }
+  #root .text-\[11px\],
+  #settings-root .text-\[11px\] { font-size: var(--app-font-11); }
+  #root .text-\[11\.5px\],
+  #settings-root .text-\[11\.5px\] { font-size: var(--app-font-11_5); }
+  #root .text-\[12px\],
+  #settings-root .text-\[12px\] { font-size: var(--app-font-12); }
+  #root .text-\[12\.5px\],
+  #settings-root .text-\[12\.5px\] { font-size: var(--app-font-12_5); }
+  #root .text-\[13px\],
+  #root .text-\[13px\]\!,
+  #settings-root .text-\[13px\] { font-size: var(--app-font-13); }
+  #root .text-\[14px\],
+  #settings-root .text-\[14px\] { font-size: var(--app-font-14); }
+  #root .text-\[18px\],
+  #settings-root .text-\[18px\] { font-size: var(--app-font-18); }
 }
 
 /* Custom window chrome (Linux/Windows): the OS gives us a transparent
