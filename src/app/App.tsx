@@ -37,7 +37,6 @@ import {
   NewEditorDialog,
   type EditorPaneHandle,
 } from "@/modules/editor";
-import { GitHistoryStack } from "@/modules/git-history";
 import { useZoom } from "@/lib/useZoom";
 import { FileExplorer, type FileExplorerHandle } from "@/modules/explorer";
 import {
@@ -45,7 +44,7 @@ import {
   type SearchInlineHandle,
   type SearchTarget,
 } from "@/modules/header";
-import { PreviewStack, type PreviewPaneHandle } from "@/modules/preview";
+import { type PreviewPaneHandle } from "@/modules/preview";
 import { openSettingsWindow } from "@/modules/settings/openSettingsWindow";
 import { usePreferencesStore } from "@/modules/settings/preferences";
 import { onKeysChanged } from "@/modules/settings/store";
@@ -54,24 +53,20 @@ import {
   useGlobalShortcuts,
   type ShortcutHandlers,
 } from "@/modules/shortcuts";
+import { type SidebarViewId } from "@/modules/sidebar";
 import {
-  ExtensionsView,
-  SidebarRail,
-  type SidebarViewId,
-} from "@/modules/sidebar";
-import {
-  SourceControlPanel,
   useSourceControl,
 } from "@/modules/source-control";
+import { BottomPanel } from "@/modules/bottom-panel";
+import { RightPanel, type RightPanelView } from "@/modules/right-panel";
 import { StatusBar } from "@/modules/statusbar";
-import { MAX_PANES_PER_TAB, useTabs, useWorkspaceCwd } from "@/modules/tabs";
+import { getTabLocation, MAX_PANES_PER_TAB, useTabs, useWorkspaceCwd } from "@/modules/tabs";
 import {
   disposeSession,
   findLeafCwd,
   hasLeaf,
   leafIds,
   respawnSession,
-  TerminalStack,
   type TerminalPaneHandle,
 } from "@/modules/terminal";
 import { ThemeProvider } from "@/modules/theme";
@@ -82,8 +77,8 @@ import {
   useWorkspaceEnvStore,
   type WorkspaceEnv,
 } from "@/modules/workspace";
-import { homeDir } from "@tauri-apps/api/path";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { homeDir } from "@tauri-apps/api/path";
 import type { SearchAddon } from "@xterm/addon-search";
 import { AnimatePresence, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -106,6 +101,30 @@ const SIDEBAR_MIN_WIDTH = 220;
 const SIDEBAR_MAX_WIDTH = 480;
 const SIDEBAR_WIDTH_STORAGE_KEY = "terax.sidebar.width";
 const SIDEBAR_VIEW_STORAGE_KEY = "terax.sidebar.view";
+
+const LEFT_PANEL_OPEN_KEY = "terax.panel.left.open";
+const BOTTOM_PANEL_OPEN_KEY = "terax.panel.bottom.open";
+const RIGHT_PANEL_OPEN_KEY = "terax.panel.right.open";
+const RIGHT_PANEL_VIEW_KEY = "terax.panel.right.view";
+
+function readPanelOpen(key: string, fallback: boolean): boolean {
+  try {
+    const v = window.localStorage.getItem(key);
+    return v !== null ? v === "true" : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function readRightPanelView(): RightPanelView {
+  try {
+    const v = window.localStorage.getItem(RIGHT_PANEL_VIEW_KEY);
+    if (v === "browser" || v === "git-graph" || v === "extensions") return v;
+  } catch {
+    // ignore
+  }
+  return "browser";
+}
 
 function clampSidebarWidth(width: number): number {
   return Math.min(
@@ -141,11 +160,6 @@ function readSidebarView(): SidebarViewId {
   return "explorer";
 }
 
-function sidebarPxToPercent(px: number): number {
-  const width = Math.max(1, window.innerWidth);
-  return Math.min(45, Math.max(10, (px / width) * 100));
-}
-
 export default function App() {
   const {
     tabs,
@@ -165,7 +179,6 @@ export default function App() {
     updateTab,
     selectByIndex,
     setLeafCwd,
-    setPaneSplitSizes,
     focusPane,
     focusNextPaneInTab,
     splitActivePane,
@@ -174,12 +187,62 @@ export default function App() {
     resetWorkspace,
     saveWorkspaceLayout,
     restoreWorkspaceLayout,
+    setPaneSplitSizes,
   } = useTabs();
 
   // Mirror `tabs` into a ref so callbacks scheduled with `setTimeout`
   // (e.g. cdInNewTab) read the latest pane state instead of a stale closure.
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
+
+  // Derived active IDs per panel location — each panel tracks its own active tab.
+  // Used by panel renderers in subsequent tasks.
+  const activeCenterId = useMemo(() => {
+    const center = tabs.filter((t) => getTabLocation(t) === "center");
+    if (center.some((t) => t.id === activeId)) return activeId;
+    return center[center.length - 1]?.id ?? null;
+  }, [tabs, activeId]);
+  const activeBottomId = useMemo(() => {
+    const bottom = tabs.filter((t) => getTabLocation(t) === "bottom");
+    if (bottom.some((t) => t.id === activeId)) return activeId;
+    return bottom[bottom.length - 1]?.id ?? null;
+  }, [tabs, activeId]);
+  const activeRightId = useMemo(() => {
+    const right = tabs.filter((t) => getTabLocation(t) === "right");
+    if (right.some((t) => t.id === activeId)) return activeId;
+    return right[0]?.id ?? null;
+  }, [tabs, activeId]);
+
+  // TabBar di Header hanya menampilkan center tabs (editor/diff).
+  const centerTabs = useMemo(
+    () => tabs.filter((t) => getTabLocation(t) === "center"),
+    [tabs],
+  );
+
+  // Panel visibility state — persisted to localStorage.
+  const [leftPanelOpen, setLeftPanelOpen] = useState(() => readPanelOpen(LEFT_PANEL_OPEN_KEY, true));
+  const [bottomPanelOpen, setBottomPanelOpen] = useState(() => readPanelOpen(BOTTOM_PANEL_OPEN_KEY, true));
+  const [rightPanelOpen, setRightPanelOpen] = useState(() => readPanelOpen(RIGHT_PANEL_OPEN_KEY, false));
+  const [rightPanelView, setRightPanelView] = useState<RightPanelView>(readRightPanelView);
+
+  const persistPanelOpen = (key: string, value: boolean) => {
+    try { window.localStorage.setItem(key, String(value)); } catch { /* ignore */ }
+  };
+
+  const toggleLeftPanel = useCallback(() => {
+    setLeftPanelOpen((v) => { const n = !v; persistPanelOpen(LEFT_PANEL_OPEN_KEY, n); return n; });
+  }, []);
+  const toggleBottomPanel = useCallback(() => {
+    setBottomPanelOpen((v) => { const n = !v; persistPanelOpen(BOTTOM_PANEL_OPEN_KEY, n); return n; });
+  }, []);
+  const toggleRightPanel = useCallback(() => {
+    setRightPanelOpen((v) => { const n = !v; persistPanelOpen(RIGHT_PANEL_OPEN_KEY, n); return n; });
+  }, []);
+  const selectRightPanelView = useCallback((view: RightPanelView) => {
+    setRightPanelView(view);
+    setRightPanelOpen(true);
+    try { window.localStorage.setItem(RIGHT_PANEL_VIEW_KEY, view); } catch { /* ignore */ }
+  }, []);
 
   const activeTerminalTab = useMemo(() => {
     const t = tabs.find((x) => x.id === activeId);
@@ -213,29 +276,6 @@ export default function App() {
       // storage may fail in private mode
     }
   }, []);
-  const toggleSidebar = useCallback(() => {
-    const p = sidebarRef.current;
-    if (!p) return;
-    if (p.getSize().asPercentage <= 0) p.expand();
-    else p.collapse();
-  }, []);
-  const cycleSidebarView = useCallback(
-    (view: SidebarViewId) => {
-      const panel = sidebarRef.current;
-      const collapsed = panel ? panel.getSize().asPercentage <= 0 : false;
-      if (collapsed) {
-        if (panel) panel.resize(sidebarPxToPercent(sidebarWidthRef.current));
-        if (view !== sidebarView) persistSidebarView(view);
-        return;
-      }
-      if (view === sidebarView) {
-        panel?.collapse();
-        return;
-      }
-      persistSidebarView(view);
-    },
-    [persistSidebarView, sidebarView],
-  );
   const persistSidebarWidth = useCallback((next: number) => {
     sidebarWidthRef.current = next;
     if (sidebarWidthWriteTimerRef.current) {
@@ -263,7 +303,7 @@ export default function App() {
     const panel = sidebarRef.current;
     const collapsed = panel ? panel.getSize().asPercentage <= 0 : false;
     if (sidebarView !== "explorer" || collapsed) {
-      if (panel && collapsed) panel.resize(sidebarPxToPercent(sidebarWidthRef.current));
+      if (panel && collapsed) panel.resize(`${sidebarWidthRef.current}px`);
       if (sidebarView !== "explorer") persistSidebarView("explorer");
       const active = document.activeElement;
       explorerReturnFocusRef.current =
@@ -291,7 +331,6 @@ export default function App() {
   }, [persistSidebarView, sidebarView]);
 
   const [home, setHome] = useState<string | null>(null);
-  const restoredWorkspaceRef = useRef(false);
   const [pendingCloseTab, setPendingCloseTab] = useState<number | null>(null);
   const workspaceEnv = useWorkspaceEnvStore((s) => s.env);
   const setWorkspaceEnv = useWorkspaceEnvStore((s) => s.setEnv);
@@ -313,16 +352,6 @@ export default function App() {
       })
       .catch(() => setHome(null));
   }, []);
-
-  useEffect(() => {
-    if (restoredWorkspaceRef.current) return;
-    if (!home) return;
-    restoredWorkspaceRef.current = true;
-    const restored = restoreWorkspaceLayout(home);
-    if (!restored) {
-      resetWorkspace(home);
-    }
-  }, [home, resetWorkspace, restoreWorkspaceLayout]);
 
   const switchWorkspace = useCallback(
     async (env: WorkspaceEnv) => {
@@ -446,12 +475,10 @@ export default function App() {
   const activeTab = tabs.find((t) => t.id === activeId);
   const isTerminalTab = activeTab?.kind === "terminal";
   const isEditorTab = activeTab?.kind === "editor";
-  const isPreviewTab = activeTab?.kind === "preview";
-  const isAiDiffTab = activeTab?.kind === "ai-diff";
-  const isGitDiffTab =
+  const _isAiDiffTab = activeTab?.kind === "ai-diff";
+  const _isGitDiffTab =
     activeTab?.kind === "git-diff" || activeTab?.kind === "git-commit-file";
-  const isGitHistoryTab = activeTab?.kind === "git-history";
-
+  void _isAiDiffTab; void _isGitDiffTab;
   // When an AI diff is approved (write_file applied to disk), reload any
   // open editor tabs for that path so the user sees the new content. We
   // track which approvalIds we've already handled to fire the reload only
@@ -696,7 +723,9 @@ export default function App() {
       if (activeLeafId === null) return;
       const term = terminalRefs.current.get(activeLeafId);
       if (!term) return;
-      const quoted = shellQuote(path);
+      const quoted = path.includes(" ")
+        ? `'${path.replace(/'/g, `'\\''`)}'`
+        : path;
       term.write(`cd ${quoted}\r`);
       term.focus();
     },
@@ -711,7 +740,9 @@ export default function App() {
         if (!tab || tab.kind !== "terminal") return;
         const t = terminalRefs.current.get(tab.activeLeafId);
         if (!t) return;
-        const quoted = shellQuote(path);
+        const quoted = path.includes(" ")
+          ? `'${path.replace(/'/g, `'\\''`)}'`
+          : path;
         t.write(`cd ${quoted}\r`);
         t.focus();
       }, 80);
@@ -834,8 +865,12 @@ export default function App() {
   const sourceControl = useSourceControl(sourceControlPath, true);
 
   const toggleSourceControl = useCallback(() => {
-    cycleSidebarView("source-control");
-  }, [cycleSidebarView]);
+    if (rightPanelOpen && rightPanelView === "source-control") {
+      toggleRightPanel();
+    } else {
+      selectRightPanelView("source-control");
+    }
+  }, [rightPanelOpen, rightPanelView, toggleRightPanel, selectRightPanelView]);
 
   const openGitGraphFromContext = useCallback(async () => {
     const known = sourceControl.repo;
@@ -911,7 +946,7 @@ export default function App() {
       "ai.askSelection": askFromSelection,
       "shortcuts.open": () => setShortcutsOpen((v) => !v),
       "settings.open": () => void openSettingsWindow(),
-      "sidebar.toggle": toggleSidebar,
+      "sidebar.toggle": toggleLeftPanel,
       "explorer.focus": toggleExplorerFocus,
       "view.zoomIn": zoomIn,
       "view.zoomOut": zoomOut,
@@ -930,7 +965,6 @@ export default function App() {
       toggleSourceControl,
       togglePanelAndFocus,
       askFromSelection,
-      toggleSidebar,
       toggleExplorerFocus,
       zoomIn,
       zoomOut,
@@ -970,11 +1004,6 @@ export default function App() {
     [updateTab],
   );
 
-  const handleTerminalCwd = useCallback(
-    (leafId: number, cwd: string) => setLeafCwd(leafId, cwd),
-    [setLeafCwd],
-  );
-
   const insertDroppedPaths = useCallback(
     async (paths: string[], target: "chat" | "workspace" = "workspace") => {
       const clean = paths.filter(Boolean);
@@ -997,7 +1026,6 @@ export default function App() {
         term.focus();
         return true;
       }
-
       let opened = false;
       for (const path of clean) {
         try {
@@ -1023,6 +1051,20 @@ export default function App() {
     term.focus();
     return true;
   }, []);
+
+  const consumeDraggedExplorerPath = useCallback(() => {
+    const path = draggingExplorerPathRef.current;
+    draggingExplorerPathRef.current = null;
+    return path;
+  }, []);
+
+  // TODO(QIN-17): wire these into the new panel layout
+  void activeCenterId; void consumeDraggedExplorerPath;
+
+  const handleTerminalCwd = useCallback(
+    (leafId: number, cwd: string) => setLeafCwd(leafId, cwd),
+    [setLeafCwd],
+  );
 
   const handleFocusLeaf = useCallback(
     (tabId: number, leafId: number) => focusPane(tabId, leafId),
@@ -1070,12 +1112,6 @@ export default function App() {
   }, [isTerminalTab, isEditorTab, activeId, activeSearchAddon, activeEditorHandle]);
 
   const activeCwd = activeTerminalLeafCwd;
-
-  const consumeDraggedExplorerPath = useCallback(() => {
-    const path = draggingExplorerPathRef.current;
-    draggingExplorerPathRef.current = null;
-    return path;
-  }, []);
 
   useEffect(() => {
     const findCwd = () => {
@@ -1126,6 +1162,7 @@ export default function App() {
     });
   }, [setLive, activeId, tabs, explorerRoot, launchCwd, home, openPreviewTab]);
 
+  // OS-level drag/drop → terminal leaf or AI chat.
   useEffect(() => {
     let disposed = false;
     let unlisten: (() => void) | null = null;
@@ -1173,118 +1210,15 @@ export default function App() {
       disposed = true;
       unlisten?.();
     };
-  }, [insertDroppedPaths]);
-
-  const workspaceSurface = (
-    <div className="relative h-full min-h-0">
-      <div
-        className={cn(
-          "absolute inset-0 px-3 pt-2 pb-2",
-          !isTerminalTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isTerminalTab}
-        onDragOver={(event) => {
-          if (event.dataTransfer.types.includes("application/x-terax-path")) {
-            event.preventDefault();
-            event.dataTransfer.dropEffect = "copy";
-          }
-        }}
-        onDrop={(event) => {
-          const path =
-            event.dataTransfer.getData("application/x-terax-path") ||
-            consumeDraggedExplorerPath();
-          if (!path) return;
-          event.preventDefault();
-          void insertDroppedPaths([path], "workspace");
-        }}
-      >
-        <TerminalStack
-          tabs={tabs}
-          activeId={activeId}
-          registerHandle={registerTerminalHandle}
-          onDropPaths={insertDroppedPathsIntoTerminalLeaf}
-          onSearchReady={handleSearchReady}
-          onCwd={handleTerminalCwd}
-          onExit={handleLeafExit}
-          onFocusLeaf={handleFocusLeaf}
-          onSplitResize={setPaneSplitSizes}
-        />
-      </div>
-      <div
-        className={cn(
-          "absolute inset-0 px-3 pt-2 pb-2",
-          !isEditorTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isEditorTab}
-      >
-        <EditorStack
-          tabs={tabs}
-          activeId={activeId}
-          registerHandle={registerEditorHandle}
-          onDirtyChange={handleEditorDirty}
-          onCloseTab={disposeTab}
-        />
-      </div>
-      <div
-        className={cn(
-          "absolute inset-0 px-3 pt-2 pb-2",
-          !isPreviewTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isPreviewTab}
-      >
-        <PreviewStack
-          tabs={tabs}
-          activeId={activeId}
-          registerHandle={registerPreviewHandle}
-          onUrlChange={handlePreviewUrl}
-        />
-      </div>
-      <div
-        className={cn(
-          "absolute inset-0 px-3 pt-2 pb-2",
-          !isAiDiffTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isAiDiffTab}
-      >
-        <AiDiffStack
-          tabs={tabs}
-          activeId={activeId}
-          onAccept={(id) => respondToApproval(id, true)}
-          onReject={(id) => respondToApproval(id, false)}
-        />
-      </div>
-      <div
-        className={cn(
-          "absolute inset-0 px-3 pt-2 pb-2",
-          !isGitDiffTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isGitDiffTab}
-      >
-        <GitDiffStack tabs={tabs} activeId={activeId} />
-      </div>
-      <div
-        className={cn(
-          "absolute inset-0",
-          !isGitHistoryTab && "invisible pointer-events-none",
-        )}
-        aria-hidden={!isGitHistoryTab}
-      >
-        <GitHistoryStack
-          tabs={tabs}
-          activeId={activeId}
-          onOpenCommitFile={openCommitFileDiffTab}
-        />
-      </div>
-    </div>
-  );
+  }, [insertDroppedPaths, insertDroppedPathsIntoTerminalLeaf]);
 
   const shell = (
     <ThemeProvider>
       <TooltipProvider>
         <div className="relative flex h-screen flex-col overflow-hidden bg-background text-foreground">
           <Header
-            tabs={tabs}
-            activeId={activeId}
+            tabs={centerTabs}
+            activeId={activeCenterId ?? 0}
             onSelect={setActiveId}
             onNew={openNewTab}
             onNewPrivate={openNewPrivateTab}
@@ -1292,7 +1226,6 @@ export default function App() {
             onNewEditor={() => setNewEditorOpen(true)}
             onClose={handleClose}
             onPin={pinTab}
-            onToggleSidebar={toggleSidebar}
             onSplit={splitActivePaneInActiveTab}
             onSaveWorkspace={handleSaveWorkspace}
             onRestoreWorkspace={handleRestoreWorkspace}
@@ -1311,21 +1244,21 @@ export default function App() {
               orientation="horizontal"
               className="min-h-0 flex-1"
             >
-              <ResizablePanel
-                id="sidebar"
-                panelRef={sidebarRef}
-                defaultSize={`${sidebarWidthRef.current}px`}
-                minSize={`${SIDEBAR_MIN_WIDTH}px`}
-                maxSize={`${SIDEBAR_MAX_WIDTH}px`}
-                collapsible
-                collapsedSize={0}
-                onResize={(size) => {
-                  if (size.inPixels > 0) persistSidebarWidth(size.inPixels);
-                }}
-              >
-                <div className="flex h-full min-h-0 flex-col border-r border-border/60 bg-card">
-                  <div className="min-h-0 flex-1">
-                    {sidebarView === "explorer" ? (
+              {leftPanelOpen && (
+                <ResizablePanel
+                  id="sidebar"
+                  panelRef={sidebarRef}
+                  defaultSize={`${sidebarWidthRef.current}px`}
+                  minSize={`${SIDEBAR_MIN_WIDTH}px`}
+                  maxSize={`${SIDEBAR_MAX_WIDTH}px`}
+                  collapsible
+                  collapsedSize={0}
+                  onResize={(size) => {
+                    if (size.inPixels > 0) persistSidebarWidth(size.inPixels);
+                  }}
+                >
+                  <div className="flex h-full min-h-0 flex-col border-r border-border/60 bg-card">
+                    <div className="min-h-0 flex-1">
                       <FileExplorer
                         ref={explorerRef}
                         rootPath={explorerRoot}
@@ -1338,30 +1271,94 @@ export default function App() {
                           draggingExplorerPathRef.current = path;
                         }}
                       />
-                    ) : sidebarView === "source-control" ? (
-                      <SourceControlPanel
-                        open
-                        sourceControl={sourceControl}
-                        onOpenDiff={openGitDiffTab}
-                      />
-                    ) : (
-                      <ExtensionsView />
-                    )}
+                    </div>
                   </div>
-                  <SidebarRail
-                    activeView={sidebarView}
-                    onSelectView={persistSidebarView}
-                    changedCount={sourceControl.changedCount}
-                    onOpenGitGraph={openGitGraphFromContext}
-                  />
-                </div>
-              </ResizablePanel>
-              <ResizableHandle withHandle />
+                </ResizablePanel>
+              )}
+              {leftPanelOpen && <ResizableHandle withHandle />}
               <ResizablePanel id="workspace" defaultSize="78%" minSize="30%">
                 <div className="flex h-full min-h-0 flex-col">
-                  <div className="relative min-h-0 flex-1">
-                    {workspaceSurface}
-                  </div>
+                  <ResizablePanelGroup
+                    orientation="vertical"
+                    className="min-h-0 flex-1"
+                  >
+                    <ResizablePanel id="center-main" minSize="20%">
+                      <div className="relative h-full min-h-0">
+                        {(() => {
+                          const isEditorTab = activeTab?.kind === "editor";
+                          const isAiDiffTab = activeTab?.kind === "ai-diff";
+                          const isGitDiffTab =
+                            activeTab?.kind === "git-diff" || activeTab?.kind === "git-commit-file";
+                          return (
+                            <>
+                              <div
+                                className={cn(
+                                  "absolute inset-0 px-3 pt-2 pb-2",
+                                  !isEditorTab && "invisible pointer-events-none",
+                                )}
+                                aria-hidden={!isEditorTab}
+                              >
+                                <EditorStack
+                                  tabs={tabs}
+                                  activeId={activeId}
+                                  registerHandle={registerEditorHandle}
+                                  onDirtyChange={handleEditorDirty}
+                                  onCloseTab={disposeTab}
+                                />
+                              </div>
+                              <div
+                                className={cn(
+                                  "absolute inset-0 px-3 pt-2 pb-2",
+                                  !isAiDiffTab && "invisible pointer-events-none",
+                                )}
+                                aria-hidden={!isAiDiffTab}
+                              >
+                                <AiDiffStack
+                                  tabs={tabs}
+                                  activeId={activeId}
+                                  onAccept={(id) => respondToApproval(id, true)}
+                                  onReject={(id) => respondToApproval(id, false)}
+                                />
+                              </div>
+                              <div
+                                className={cn(
+                                  "absolute inset-0 px-3 pt-2 pb-2",
+                                  !isGitDiffTab && "invisible pointer-events-none",
+                                )}
+                                aria-hidden={!isGitDiffTab}
+                              >
+                                <GitDiffStack tabs={tabs} activeId={activeId} />
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </ResizablePanel>
+                    {bottomPanelOpen && <ResizableHandle withHandle />}
+                    <ResizablePanel
+                      id="bottom"
+                      defaultSize="30%"
+                      minSize="10%"
+                      collapsible
+                      collapsedSize={0}
+                    >
+                      <BottomPanel
+                        tabs={tabs}
+                        activeId={activeBottomId}
+                        onSelect={setActiveId}
+                        onNew={openNewTab}
+                        onClose={handleClose}
+                        open={bottomPanelOpen}
+                        registerHandle={registerTerminalHandle}
+                        onDropPaths={insertDroppedPathsIntoTerminalLeaf}
+                        onSearchReady={handleSearchReady}
+                        onCwd={handleTerminalCwd}
+                        onExit={handleLeafExit}
+                        onFocusLeaf={handleFocusLeaf}
+                        onSplitResize={setPaneSplitSizes}
+                      />
+                    </ResizablePanel>
+                  </ResizablePanelGroup>
 
                   {keysLoaded ? (
                     <motion.div
@@ -1386,6 +1383,28 @@ export default function App() {
                   ) : null}
                 </div>
               </ResizablePanel>
+              {rightPanelOpen && <ResizableHandle withHandle />}
+              <ResizablePanel
+                id="right"
+                defaultSize="25%"
+                minSize="15%"
+                collapsible
+                collapsedSize={0}
+              >
+                <RightPanel
+                  open={rightPanelOpen}
+                  activeView={rightPanelView}
+                  onSelectView={selectRightPanelView}
+                  tabs={tabs}
+                  activeId={activeRightId}
+                  registerPreviewHandle={registerPreviewHandle}
+                  onPreviewUrlChange={handlePreviewUrl}
+                  onOpenCommitFileDiff={openCommitFileDiffTab}
+                  onOpenGitGraph={openGitGraphFromContext}
+                  sourceControl={sourceControl}
+                  onOpenGitDiff={openGitDiffTab}
+                />
+              </ResizablePanel>
             </ResizablePanelGroup>
           </main>
 
@@ -1400,6 +1419,12 @@ export default function App() {
             privateActive={
               activeTab?.kind === "terminal" && activeTab.private === true
             }
+            leftPanelOpen={leftPanelOpen}
+            bottomPanelOpen={bottomPanelOpen}
+            rightPanelOpen={rightPanelOpen}
+            onToggleLeftPanel={toggleLeftPanel}
+            onToggleBottomPanel={toggleBottomPanel}
+            onToggleRightPanel={toggleRightPanel}
           />
 
           {hasComposer ? (

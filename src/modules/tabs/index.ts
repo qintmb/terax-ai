@@ -2,7 +2,9 @@ export { TabBar } from "./TabBar";
 export {
   MAX_PANES_PER_TAB,
   useTabs,
+  getTabLocation,
   type Tab,
+  type TabLocation,
   type TerminalTab,
   type EditorTab,
   type PreviewTab,

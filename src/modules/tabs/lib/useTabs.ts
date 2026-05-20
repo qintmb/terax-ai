@@ -103,6 +103,21 @@ export type Tab =
   | GitHistoryTab
   | GitCommitFileDiffTab;
 
+export type TabLocation = "center" | "bottom" | "right";
+
+/** Derive which panel a tab renders in. */
+export function getTabLocation(tab: Tab): TabLocation {
+  switch (tab.kind) {
+    case "terminal":
+      return "bottom";
+    case "preview":
+    case "git-history":
+      return "right";
+    default:
+      return "center";
+  }
+}
+
 export type TabPatch = Partial<{
   title: string;
   cwd: string;
@@ -201,13 +216,21 @@ export function useTabs(initial?: Partial<TerminalTab>) {
       },
     ];
   });
-  const [activeId, setActiveId] = useState(1);
+  const [activeId, _setActiveId] = useState(1);
   const nextIdRef = useRef(3);
   const tabsRef = useRef(tabs);
 
   useEffect(() => {
     tabsRef.current = tabs;
   }, [tabs]);
+
+  // Safe wrapper: validasi ID exist di tabs sebelum set.
+  // Internal callers bypass wrapper via _setActiveId.
+  const setActiveId = useCallback((id: number) => {
+    const all = tabsRef.current;
+    if (all.length === 0) return;
+    _setActiveId(all.some((t) => t.id === id) ? id : all[all.length - 1].id);
+  }, []);
 
   const newTab = useCallback((cwd?: string) => {
     const tabId = nextIdRef.current++;
@@ -223,7 +246,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
         activeLeafId: leafId,
       },
     ]);
-    setActiveId(tabId);
+    _setActiveId(tabId);
     return tabId;
   }, []);
 
@@ -242,7 +265,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
         private: true,
       },
     ]);
-    setActiveId(tabId);
+    _setActiveId(tabId);
     return tabId;
   }, []);
 
@@ -325,7 +348,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
         return next;
       }
     });
-    if (targetId !== null) setActiveId(targetId);
+    if (targetId !== null) _setActiveId(targetId);
     return targetId as number | null;
   }, []);
 
@@ -376,7 +399,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
           },
         ];
       });
-      if (targetId !== null) setActiveId(targetId);
+      if (targetId !== null) _setActiveId(targetId);
       return targetId as number | null;
     },
     [],
@@ -410,7 +433,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
       }
       const idx = curr.findIndex((t) => t.id === target.id);
       const next = curr.filter((t) => t.id !== target.id);
-      setActiveId((active) =>
+      _setActiveId((active) =>
         target.id === active ? next[Math.max(0, idx - 1)].id : active,
       );
       return next;
@@ -423,7 +446,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
       ...t,
       { id, kind: "preview", title: titleFromUrl(url), url },
     ]);
-    setActiveId(id);
+    _setActiveId(id);
     return id;
   }, []);
 
@@ -455,7 +478,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
         );
         tabsRef.current = nextTabs;
         setTabs(nextTabs);
-        setActiveId(existing.id);
+        _setActiveId(existing.id);
         return existing.id;
       }
 
@@ -474,7 +497,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
       ];
       tabsRef.current = nextTabs;
       setTabs(nextTabs);
-      setActiveId(id);
+      _setActiveId(id);
       return id;
     },
     [],
@@ -495,7 +518,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
         );
         tabsRef.current = nextTabs;
         setTabs(nextTabs);
-        setActiveId(existing.id);
+        _setActiveId(existing.id);
         return existing.id;
       }
       const id = nextIdRef.current++;
@@ -510,7 +533,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
       ];
       tabsRef.current = nextTabs;
       setTabs(nextTabs);
-      setActiveId(id);
+      _setActiveId(id);
       return id;
     },
     [],
@@ -547,7 +570,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
         );
         tabsRef.current = nextTabs;
         setTabs(nextTabs);
-        setActiveId(existing.id);
+        _setActiveId(existing.id);
         return existing.id;
       }
       const id = nextIdRef.current++;
@@ -567,7 +590,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
       ];
       tabsRef.current = nextTabs;
       setTabs(nextTabs);
-      setActiveId(id);
+      _setActiveId(id);
       return id;
     },
     [],
@@ -583,7 +606,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
         toDispose = leafIds(target.paneTree);
       }
       const next = curr.filter((t) => t.id !== id);
-      setActiveId((active) =>
+      _setActiveId((active) =>
         id === active ? next[Math.max(0, idx - 1)].id : active,
       );
       return next;
@@ -631,7 +654,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
   const selectByIndex = useCallback(
     (idx: number) => {
       const t = tabs[idx];
-      if (t) setActiveId(t.id);
+      if (t) _setActiveId(t.id);
     },
     [tabs],
   );
@@ -738,7 +761,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
         if (curr.length <= 1) return curr;
         const idx = curr.findIndex((x) => x.id === tab.id);
         const next = curr.filter((x) => x.id !== tab.id);
-        setActiveId((active) =>
+        _setActiveId((active) =>
           active === tab.id ? next[Math.max(0, idx - 1)].id : active,
         );
         didRemove = true;
@@ -772,7 +795,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
         if (curr.length <= 1) return curr;
         const idx = curr.findIndex((x) => x.id === tabId);
         const next = curr.filter((x) => x.id !== tabId);
-        setActiveId((active) =>
+        _setActiveId((active) =>
           active === tabId ? next[Math.max(0, idx - 1)].id : active,
         );
         closedTab = true;
@@ -813,7 +836,7 @@ export function useTabs(initial?: Partial<TerminalTab>) {
         },
       ];
     });
-    setActiveId(tabId);
+    _setActiveId(tabId);
     for (const lid of toDispose) disposeSession(lid);
   }, []);
 

@@ -71,7 +71,9 @@ export function PaneTreeView({
           if (dragDepthRef.current === 0) setDropActive(false);
         }}
         onDropCapture={(event) => {
-          const path = event.dataTransfer.getData("application/x-terax-path");
+          const path =
+            event.dataTransfer.getData("application/x-terax-path") ||
+            event.dataTransfer.getData("text/plain");
           if (!path) return;
           event.preventDefault();
           event.stopPropagation();

@@ -21,7 +21,6 @@ import {
   LayoutTwoColumnIcon,
   LayoutTwoRowIcon,
   Settings01Icon,
-  SidebarLeftIcon,
 } from "@hugeicons/core-free-icons";
 import { HugeiconsIcon } from "@hugeicons/react";
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
@@ -42,7 +41,6 @@ type Props = {
   onClose: (id: number) => void;
   /** Promote a preview (transient) tab to persistent. */
   onPin: (id: number) => void;
-  onToggleSidebar: () => void;
   onSplit: (dir: "row" | "col") => void;
   onSaveWorkspace: () => void;
   onRestoreWorkspace: () => void;
@@ -66,7 +64,6 @@ export function Header({
   onNewEditor,
   onClose,
   onPin,
-  onToggleSidebar,
   onSplit,
   onSaveWorkspace,
   onRestoreWorkspace,
@@ -141,16 +138,6 @@ export function Header({
       }`}
     >
       <div className="flex shrink-0 items-center gap-0.5">
-        <Button
-          onClick={onToggleSidebar}
-          title="Toggle sidebar"
-          variant="ghost"
-          size="icon-sm"
-          className="shrink-0 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground"
-        >
-          <HugeiconsIcon icon={SidebarLeftIcon} size={18} strokeWidth={1.75} />
-        </Button>
-
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button

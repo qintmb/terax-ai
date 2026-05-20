@@ -1,5 +1,6 @@
 import { ensureMonoFontsLoaded } from "@/lib/fonts";
 import { usePreferencesStore } from "@/modules/settings/preferences";
+import { useTheme } from "@/modules/theme";
 import type { SearchAddon } from "@xterm/addon-search";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { DormantRing } from "./dormantRing";
@@ -337,6 +338,14 @@ export function useTerminalSession({
   useEffect(() => {
     applyWebglPreference(webglPref);
   }, [webglPref]);
+
+  // Subscribe to theme changes so the terminal re-reads CSS vars live —
+  // no need to open a new terminal tab when switching themes.
+  const editorTheme = usePreferencesStore((p) => p.editorTheme);
+  const { resolvedTheme } = useTheme();
+  useEffect(() => {
+    applyPoolTheme();
+  }, [editorTheme, resolvedTheme]);
 
   useEffect(() => {
     const s = sessions.get(leafId);
