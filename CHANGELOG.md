@@ -2,6 +2,26 @@
 
 All notable changes to Terax. Format loosely follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions follow [SemVer](https://semver.org/) (pre-`1.0`, minor bumps may include breaking changes).
 
+## [0.6.10] — 2026-05-20
+
+### Added
+- Three-panel Lapce-style layout: left explorer, center editor, bottom terminal, right utilities.
+- Panel toggle buttons in status bar (explorer, terminal, right panel) with localStorage persistence.
+- Bottom panel with dedicated terminal tab bar (+ new, close, select).
+- Right panel with rail: browser, git graph, source control, extensions.
+- TabLocation metadata system for panel-aware tab routing.
+
+### Changed
+- Terminal moved from center workspace to bottom panel — shell sessions persist across hide/show.
+- Center area is now editor/diff only; preview, git history, and extensions live in right panel.
+- Tab bar in header shows only editor/diff tabs; terminal tabs have their own bar.
+- Sidebar toggle button removed from header; toggle now in status bar.
+- Source control shortcut opens right panel instead of left sidebar view.
+
+### Fixed
+- Tab activation guard prevents stale activeId after rapid tab close/open.
+- Terminal theme now updates live when switching themes or terminal preferences.
+
 ## [0.6.9] — 2026-05-18
 
 ### Added
